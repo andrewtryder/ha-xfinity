@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.xfinity.api import XfinityAuthError, XfinityClientRejected, XfinityConnectionError, XfinityError
-from custom_components.xfinity.const import CONF_ADDRESS, CONF_REFRESH_TOKEN, DOMAIN, INVALID_CLIENT_ISSUE
+from custom_components.xfinity.const import CONF_ADDRESS, CONF_BROWSERLESS_API_KEY, CONF_PASSWORD, CONF_REFRESH_TOKEN, CONF_USERNAME, DOMAIN, INVALID_CLIENT_ISSUE
 from custom_components.xfinity.coordinator import XfinityCoordinator
 from custom_components.xfinity.diagnostics import async_get_config_entry_diagnostics
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -127,7 +127,12 @@ async def test_invalid_client_opens_a_repair_issue(hass):
 
 
 async def test_diagnostics_redact_address_and_tokens(hass, enable_custom_integrations):
-    entry = _entry(hass)
+    entry = _entry(
+        hass,
+        username="user@example.com",
+        password="super-secret-password",
+        browserless_api_key="browserless-api-key",
+    )
     with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
@@ -135,5 +140,51 @@ async def test_diagnostics_redact_address_and_tokens(hass, enable_custom_integra
     text = str(result)
     assert TOKEN not in text
     assert ADDRESS not in text
+    assert "super-secret-password" not in text
+    assert "browserless-api-key" not in text
     assert result["address_configured"] is True
+    assert result["credentials_configured"] is True
     assert result["data"]["usage"]["used_gb"] == 1
+
+
+async def test_rejected_token_signs_in_again(hass):
+    entry = _entry(hass, username="user@example.com", password="secret", browserless_api_key="browserless-api-key")
+    calls = {"usage": 0}
+
+    class Expired(_Client):
+        async def async_fetch_usage(self, today=None):
+            calls["usage"] += 1
+            if calls["usage"] == 1:
+                raise XfinityAuthError("refresh rejected")
+            return await super().async_fetch_usage(today)
+
+    login = AsyncMock(return_value={"refresh_token": "rotated-refresh-token", "access_token": "access", "id_token": "identity", "expires_in": 3600})
+    with (
+        patch("custom_components.xfinity.coordinator.XfinityClient", Expired),
+        patch("custom_components.xfinity.coordinator.async_browserless_login", login),
+    ):
+        coordinator = XfinityCoordinator(hass, entry)
+        data = await coordinator._async_update_data()
+    assert data["usage"]["status"] == "ok"
+    assert entry.data[CONF_REFRESH_TOKEN] == "rotated-refresh-token"
+    login.assert_awaited_once()
+
+
+async def test_relogin_is_limited_to_once_an_hour(hass):
+    entry = _entry(hass, username="user@example.com", password="secret", browserless_api_key="browserless-api-key")
+
+    class Expired(_Client):
+        async def async_fetch_usage(self, today=None):
+            raise XfinityAuthError("refresh rejected")
+
+    login = AsyncMock(return_value={"refresh_token": "rotated-refresh-token", "access_token": "access", "id_token": "identity", "expires_in": 3600})
+    with (
+        patch("custom_components.xfinity.coordinator.XfinityClient", Expired),
+        patch("custom_components.xfinity.coordinator.async_browserless_login", login),
+    ):
+        coordinator = XfinityCoordinator(hass, entry)
+        with pytest.raises(ConfigEntryAuthFailed):
+            await coordinator._async_update_data()
+        with pytest.raises(ConfigEntryAuthFailed):
+            await coordinator._async_update_data()
+    login.assert_awaited_once()

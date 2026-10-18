@@ -479,50 +479,6 @@ class LoginForms(HTMLParser):
 LOGIN_HOSTS = {"xerxes-sub.xerxessecure.com", "login.xfinity.com", "oauth.xfinity.com"}
 
 
-def cloak_login(url, state, timeout=600):
-    """Sign in once with headed CloakBrowser and return the authorization code.
-
-    Home Assistant does not run this. It only imports the refresh token written afterward.
-    """
-    try:
-        from cloakbrowser import launch
-    except ImportError:
-        raise ProbeError("CloakBrowser is not installed. Run: python -m pip install cloakbrowser") from None
-    username = prompt_secret("Xfinity username (hidden): ")
-    password = prompt_secret("Xfinity password (hidden): ")
-    callback = {"url": None}
-    browser = launch(headless=False, humanize=True, timezone="America/New_York", locale="en-US")
-    try:
-        page = browser.new_page()
-
-        def remember(request):
-            if request.url.startswith(REDIRECT_URI):
-                callback["url"] = request.url
-
-        page.on("request", remember)
-        page.on("requestfailed", remember)
-        page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_selector("#user", timeout=30000)
-        page.locator("#user").fill(username)
-        page.locator("#sign_in").click()
-        page.wait_for_selector("input[type=password]", timeout=30000)
-        page.locator("input[type=password]").first.fill(password)
-        page.locator("#sign_in").click()
-        deadline = time.monotonic() + timeout
-        while callback["url"] is None and time.monotonic() < deadline:
-            page.wait_for_timeout(1000)
-            if page.url.startswith(REDIRECT_URI):
-                callback["url"] = page.url
-                break
-    except Exception as exc:
-        raise ProbeError("CloakBrowser login did not reach the Xfinity callback. Complete MFA in the window if it is still open, then retry.") from exc
-    finally:
-        browser.close()
-    if not callback["url"]:
-        raise ProbeError("CloakBrowser login timed out before the Xfinity callback")
-    return _code_from_url(callback["url"], state)
-
-
 def trusted_login_url(url):
     try:
         p = urlparse(url)
@@ -734,8 +690,6 @@ def obtain_account_tokens(login_method, session):
     url, verifier, activity, state = pkce_params()
     if login_method == "chrome":
         code = chrome_login(url, state)
-    elif login_method == "cloak":
-        code = cloak_login(url, state)
     elif login_method == "manual":
         code = manual_login(url, state)
     else:
@@ -846,7 +800,7 @@ def main(argv=None):
     group.add_argument("--outage-only", action="store_true")
     group.add_argument("--usage-only", action="store_true")
     group.add_argument("--all", action="store_true")
-    parser.add_argument("--login-method", choices=("http", "manual", "chrome", "cloak"), default="http")
+    parser.add_argument("--login-method", choices=("http", "manual", "chrome"), default="http")
     parser.add_argument("--manual-login", action="store_true", help="Alias for --login-method manual")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)

@@ -7,7 +7,11 @@ from datetime import timedelta
 DOMAIN = "xfinity"
 
 CONF_ADDRESS = "address"
+CONF_USERNAME = "username"
+CONF_PASSWORD = "password"
+CONF_BROWSERLESS_API_KEY = "browserless_api_key"
 CONF_REFRESH_TOKEN = "refresh_token"
+RELOGIN_INTERVAL_SECONDS = 3600
 
 # Keys written by 0.1.0. Removed from the config entry on setup.
 STALE_ENTRY_KEYS = ("access_token", "id_token", "expires_at", "client_secret", "token_file")
@@ -25,7 +29,10 @@ USAGE_INTERVAL = timedelta(hours=6)
 
 OUTAGE_SESSION_URL = "https://api.sc.xfinity.com/outagedata/session"
 OUTAGE_STATUS_URL = "https://api.sc.xfinity.com/outage/consolidated/lob/v3"
+AUTH_URL = "https://xerxes-sub.xerxessecure.com/xerxes-ctrl/oauth/authorize"
 AUTH_TOKEN_URL = "https://xerxes-sub.xerxessecure.com/xerxes-ctrl/oauth/token"
+REDIRECT_URI = "xfinitydigitalhome://auth"
+TOKEN_REDIRECT_URI = "xfinitydigitalhome%3A%2F%2Fauth"
 GRAPHQL_URL = "https://gw.api.dh.comcast.com/galileo/graphql"
 CLIENT_ID = "xfinity-android-application"
 # Public OAuth credential shipped inside the official Xfinity Android app.

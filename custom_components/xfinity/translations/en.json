@@ -3,39 +3,59 @@
     "step": {
       "user": {
         "title": "Xfinity",
-        "description": "Enter the service address and the refresh token printed by get_token.py on a desktop computer. Home Assistant stores that token and renews it. It does not open a browser.",
+        "description": "Home Assistant signs in through your Browserless account. The password is stored in this integration and sent to Browserless only when signing in.",
         "data": {
           "address": "Service address",
-          "refresh_token": "Refresh token"
+          "username": "Xfinity username",
+          "password": "Xfinity password",
+          "browserless_api_key": "Browserless API key"
+        },
+        "data_description": {
+          "password": "Stored in Home Assistant and sent to Browserless when the refresh token is rejected.",
+          "browserless_api_key": "From your Browserless account. Residential proxy units are used for each sign-in."
         }
       },
       "reauth_confirm": {
-        "title": "Refresh Xfinity token",
-        "description": "The saved refresh token was rejected. Run get_token.py on a desktop and paste the new refresh token.",
+        "title": "Sign in to Xfinity again",
+        "description": "The saved sign-in was rejected, or Xfinity asked for a verification code. Enter the password and Browserless API key.",
         "data": {
-          "refresh_token": "Refresh token"
+          "password": "Xfinity password",
+          "browserless_api_key": "Browserless API key"
         }
       },
       "reconfigure": {
-        "title": "Xfinity address",
-        "description": "Update the service address used for outage checks.",
+        "title": "Xfinity settings",
+        "description": "Update the service address or Browserless API key. The password is unchanged.",
         "data": {
-          "address": "Service address"
+          "address": "Service address",
+          "browserless_api_key": "Browserless API key"
         }
       }
     },
     "error": {
-      "invalid_auth": "Xfinity rejected the refresh token.",
+      "invalid_auth": "Xfinity rejected that username or password.",
       "invalid_client": "Xfinity rejected this integration's app credential. Update the integration.",
       "invalid_address": "Enter a street address between 5 and 200 characters.",
-      "invalid_token": "Paste the refresh token with no spaces or line breaks.",
-      "cannot_connect": "Could not reach Xfinity."
+      "invalid_username": "Enter the Xfinity username.",
+      "invalid_password": "Enter the Xfinity password.",
+      "invalid_browserless_key": "Enter the Browserless API key.",
+      "mfa_required": "Xfinity asked for a verification code. Approve it in the Xfinity app, then try again.",
+      "browserless_error": "Browserless could not run the sign-in. Check the API key and remaining units.",
+      "cannot_connect": "Could not reach Xfinity or Browserless."
     },
     "abort": {
       "already_configured": "Xfinity is already configured.",
       "single_instance_allowed": "Xfinity is already configured.",
-      "reauth_successful": "Xfinity token updated.",
-      "reconfigure_successful": "Xfinity address updated."
+      "reauth_successful": "Xfinity sign-in updated.",
+      "reconfigure_successful": "Xfinity settings updated."
+    }
+  },
+  "exceptions": {
+    "invalid_auth": {
+      "message": "Xfinity rejected the saved sign-in. Update the password or Browserless API key."
+    },
+    "not_ready": {
+      "message": "Xfinity is temporarily unavailable."
     }
   },
   "entity": {
