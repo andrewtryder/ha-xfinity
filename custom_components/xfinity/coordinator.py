@@ -61,7 +61,7 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         )
         self._account_due = datetime.now(timezone.utc)
         self._warned: set[str] = set()
-        self._last_login = 0.0
+        self._last_login: float | None = None
 
     async def _async_setup(self) -> None:
         """Confirm the entry can be polled before the first refresh."""
@@ -144,7 +144,7 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
     async def _relogin(self) -> bool:
         """Sign in again at most once an hour. Returns whether a new token was stored."""
         now = time.monotonic()
-        if now - self._last_login < RELOGIN_INTERVAL_SECONDS:
+        if self._last_login is not None and now - self._last_login < RELOGIN_INTERVAL_SECONDS:
             return False
         self._last_login = now
         data = self.entry.data
