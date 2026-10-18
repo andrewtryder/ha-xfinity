@@ -7,7 +7,6 @@ import unittest
 
 from custom_components.xfinity.api import bill_summary, outage_summary, usage_summary
 from custom_components.xfinity.const import ACCOUNT_OUTAGE_SUMMARY_URLS
-import xfinity_api_probe as probe
 
 
 NOW = datetime(2026, 10, 18, 12, tzinfo=timezone.utc)
@@ -21,20 +20,17 @@ def outage(planned, start):
 
 
 class ApiHelperTests(unittest.TestCase):
-    def test_scheduled_maintenance_matches_probe(self):
+    def test_scheduled_maintenance(self):
         payload = outage(True, "2026-10-20T00:00:00+00:00")
         integration = outage_summary(payload, NOW)
-        reference = probe.outage_summary(payload, NOW)
         self.assertEqual(integration["incidents"][0]["classification"], "scheduled_maintenance")
-        self.assertEqual(integration["incidents"][0]["classification"], reference["incidents"][0]["classification"])
         self.assertFalse(integration["active_outage"])
         self.assertTrue(integration["scheduled_maintenance"])
 
-    def test_underway_maintenance_matches_probe(self):
+    def test_underway_maintenance(self):
         payload = outage(True, "2026-10-18T00:00:00+00:00")
         integration = outage_summary(payload, NOW)
-        reference = probe.outage_summary(payload, NOW)
-        self.assertEqual(integration["incidents"][0]["classification"], reference["incidents"][0]["classification"])
+        self.assertEqual(integration["incidents"][0]["classification"], "planned_maintenance_underway")
         self.assertTrue(integration["active_outage"])
         self.assertFalse(integration["scheduled_maintenance"])
 
