@@ -1,0 +1,85 @@
+rules:
+  action-setup:
+    status: exempt
+    comment: This integration exposes no actions.
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency: done
+  docs-actions:
+    status: exempt
+    comment: This integration exposes no actions.
+  docs-conditions:
+    status: exempt
+    comment: This integration exposes no conditions.
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: This integration exposes no triggers.
+  entity-event-setup:
+    status: exempt
+    comment: Entities are coordinator polls, not events.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+  action-exceptions:
+    status: exempt
+    comment: This integration exposes no actions.
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: done
+  devices:
+    status: exempt
+    comment: One service device is created for the account. There is no per-device discovery.
+  diagnostics: done
+  discovery:
+    status: exempt
+    comment: Xfinity accounts cannot be discovered on the local network.
+  discovery-update-info:
+    status: exempt
+    comment: There is no discovery.
+  docs-data-update: done
+  docs-examples:
+    status: exempt
+    comment: Setup is one account form, not a multi-step example.
+  docs-known-limitations: done
+  docs-supported-devices:
+    status: exempt
+    comment: This is an account service, not a device integration.
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: The account is a single service device.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default:
+    status: exempt
+    comment: Every entity is useful on a single account.
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: The single service device is removed with the config entry.
+  async-dependency: done
+  inject-websession: done
+  strict-typing:
+    status: todo
+    comment: Public methods are typed. A full strict-typing pass is still open.

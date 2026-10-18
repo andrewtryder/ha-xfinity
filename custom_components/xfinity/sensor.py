@@ -11,6 +11,8 @@ from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, Sen
 from homeassistant.const import PERCENTAGE, UnitOfInformation
 from homeassistant.helpers.entity import EntityCategory
 
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+
 from .const import OUTAGE_STATUS_OPTIONS
 from .coordinator import XfinityCoordinator
 from .entity import XfinityEntity
@@ -144,7 +146,11 @@ SENSORS: tuple[XfinitySensorDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities) -> None:
+async def async_setup_entry(
+    hass,
+    entry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     coordinator: XfinityCoordinator = entry.runtime_data
     async_add_entities(XfinitySensor(coordinator, entry.entry_id, description) for description in SENSORS)
 

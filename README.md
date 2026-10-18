@@ -1,10 +1,10 @@
 # Xfinity for Home Assistant
 
-Unofficial Home Assistant integration for an Xfinity residential account. It polls outages, internet usage, and the current bill. It does not open a browser on Home Assistant.
+Unofficial Home Assistant integration for one Xfinity residential account. It polls outages, internet usage, and the current bill.
 
 Xfinity and Comcast are trademarks of their owners. This project is not affiliated with, endorsed by, or supported by Comcast.
 
-Requires Home Assistant 2026.3 or newer.
+Requires Home Assistant 2026.8 or newer.
 
 ## Install with HACS
 
@@ -15,57 +15,55 @@ Requires Home Assistant 2026.3 or newer.
 
 You can also copy `custom_components/xfinity` into Home Assistant's `custom_components` directory and restart.
 
-## Create a refresh token
+To remove it, delete the Xfinity integration from Settings, Devices & services. That removes the device, the entities, and the stored sign-in.
 
-Home Assistant cannot sign in to Xfinity. Akamai Bot Manager blocks a headless browser, and Home Assistant does not have the packages that desktop login needs. Create the token once on a computer that can show a window:
+## Setup
+
+You need a [Browserless](https://www.browserless.io) API key. Each sign-in uses a residential proxy session.
+
+The integration asks for:
+
+- Service address, used for outage checks
+- Xfinity username
+- Xfinity password
+- Browserless API key
+
+Home Assistant signs in through Browserless, stores the refresh token, and renews that token itself. It does not open a browser on the Home Assistant machine. If Xfinity asks for a verification code during setup, approve it in the Xfinity app and submit the form again.
+
+The password and Browserless key are stored in the Home Assistant config entry. The password is sent to Browserless only when signing in: during setup, when you reauthenticate, and at most once an hour if Xfinity rejects the refresh token. Access tokens stay in memory.
+
+## What it polls
+
+Outages refresh every 30 minutes and do not need an account. Usage and the bill refresh every six hours. A failure in one request does not clear the last good value of the others.
+
+Sensors: data used, data allowance, percent used, usage cycle end, data policy, outage status, bill status, amount due, bill due date, and past-due amount.
+
+Binary sensors: active outage, scheduled maintenance, and past due bill.
+
+Change the service address or Browserless key with Configure on the integration. Change the password with the reauthentication form.
+
+## Limitations
+
+- One Xfinity account per Home Assistant.
+- A verification code cannot be entered inside Home Assistant. Approve it, then try again.
+- If Xfinity changes the application credential shipped in its Android app, update this integration. A new password will not fix that, and Home Assistant raises a repair.
+- Browserless is a third party. A sign-in sends the username and password to Browserless's cloud browser.
+
+## Troubleshooting
+
+- **Xfinity rejected the username or password.** Re-enter them. The password is the Xfinity account password.
+- **Verification code.** Xfinity asked for MFA. Approve the prompt, then run reauthentication.
+- **Browserless error.** Check the API key and that the account has units left. HTTP 429 means the account is rate limited.
+- **Update the integration.** The repair named "Xfinity needs an integration update" means the bundled app credential was rejected.
+
+## Command-line probe
+
+`xfinity_api_probe.py` can check an outage without an account. It is a development tool and is not used by Home Assistant.
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
-python get_token.py
-```
-
-The script asks for your Xfinity username and password in the terminal. Typing is hidden, and the password is not saved. A browser window opens. If Xfinity asks for a verification code, enter it in that window. When sign-in finishes, the terminal prints one refresh token. Copy that line into the integration, along with the service address used for outage checks.
-
-The script does not write the token or cookies to disk. Home Assistant stores the refresh token in the config entry and replaces it when Xfinity rotates it. Do not share the token. A cookie from xfinity.com is not this token.
-
-The Android application's OAuth client id and client secret are included in this project. They are the same public credentials shipped in the official app. You do not paste them.
-
-## Entities
-
-Sensors:
-
-- Data used, data allowance, and percent of allowance used
-- Usage cycle end and data policy
-- Outage status
-- Bill status, amount due, bill due date, and past-due amount
-
-Binary sensors:
-
-- Active outage
-- Scheduled maintenance
-- Past due bill
-
-Outages, including scheduled maintenance, do not need a token. Usage and bill status do. Outages refresh every 30 minutes. Usage and the bill refresh every six hours. A failure in one of those does not clear the last good value of the others.
-
-## Troubleshooting
-
-If Xfinity rejects the refresh token, Home Assistant opens a reauthentication form. Run `python get_token.py` again and paste the new token. The service address can be changed with Configure on the integration without creating a new token.
-
-If Xfinity rejects this integration's application credential, Home Assistant raises a repair that asks you to update the integration. A new refresh token will not fix that. It means Xfinity changed the credential shipped in the official app.
-
-## Privacy
-
-The integration stores the service address and the refresh token. Access tokens stay in memory. The password is never stored. Diagnostics omit the address and every token. Bill data does not include the account number.
-
-## Command-line probe
-
-`xfinity_api_probe.py` is the standalone client this integration was built from. `get_token.py` is the supported way to create a Home Assistant token. The probe can also check an outage without an account:
-
-```sh
 export XFINITY_SERVICE_ADDRESS='Your street address, city, state ZIP'
 python xfinity_api_probe.py --outage-only
 ```
-
-Other login methods (`http`, `manual`, `chrome`) are development tools. They are not used by Home Assistant.

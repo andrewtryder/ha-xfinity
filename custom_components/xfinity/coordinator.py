@@ -4,25 +4,31 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import logging
+import time
 from typing import Any, TypedDict
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 from homeassistant.util import dt as dt_util
 
 from .api import XfinityAuthError, XfinityClient, XfinityClientRejected, XfinityError
 from .const import (
     CONF_ADDRESS,
+    CONF_BROWSERLESS_API_KEY,
+    CONF_PASSWORD,
     CONF_REFRESH_TOKEN,
+    CONF_USERNAME,
     DOMAIN,
     INVALID_CLIENT_ISSUE,
     OUTAGE_INTERVAL,
+    RELOGIN_INTERVAL_SECONDS,
     USAGE_INTERVAL,
 )
+from .login import BrowserlessError, XfinityLoginError, async_browserless_login
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,13 +61,19 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         )
         self._account_due = datetime.now(timezone.utc)
         self._warned: set[str] = set()
+        self._last_login = 0.0
+
+    async def _async_setup(self) -> None:
+        """Confirm the entry can be polled before the first refresh."""
+        if not self.entry.data.get(CONF_ADDRESS) or not self.entry.data.get(CONF_REFRESH_TOKEN):
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="invalid_auth")
 
     async def _async_update_data(self) -> XfinityData:
         outage = await self._outage()
         usage, bill = await self._account()
         sections = (outage, usage, bill)
         if self.data is None and all(section.get("status") == "error" for section in sections):
-            raise UpdateFailed("Xfinity outage, usage, and bill requests failed")
+            raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="not_ready")
         return {"outage": outage, "usage": usage, "bill": bill}
 
     async def _outage(self) -> dict[str, Any]:
@@ -85,8 +97,10 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         except XfinityClientRejected as err:
             client_rejected = True
             usage = self._failed("usage", previous_usage, err)
-        except XfinityAuthError as err:
-            raise ConfigEntryAuthFailed("Xfinity refresh token was rejected") from err
+        except XfinityAuthError:
+            if not await self._relogin():
+                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from None
+            usage = await self._usage_after_login(previous_usage)
         except XfinityError as err:
             usage = self._failed("usage", previous_usage, err)
         else:
@@ -96,8 +110,10 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         except XfinityClientRejected as err:
             client_rejected = True
             bill = self._failed("bill", previous_bill, err)
-        except XfinityAuthError as err:
-            raise ConfigEntryAuthFailed("Xfinity refresh token was rejected") from err
+        except XfinityAuthError:
+            if not await self._relogin():
+                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from None
+            bill = await self._bill_after_login(previous_bill)
         except XfinityError as err:
             bill = self._failed("bill", previous_bill, err)
         else:
@@ -108,6 +124,55 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
             self._clear_client_issue()
             self._account_due = now + USAGE_INTERVAL
         return usage, bill
+
+    async def _usage_after_login(self, previous: Any) -> dict[str, Any]:
+        try:
+            return self._recovered("usage", await self.client.async_fetch_usage(dt_util.now().date()))
+        except XfinityAuthError:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from None
+        except XfinityError as err:
+            return self._failed("usage", previous, err)
+
+    async def _bill_after_login(self, previous: Any) -> dict[str, Any]:
+        try:
+            return self._recovered("bill", await self.client.async_fetch_bill())
+        except XfinityAuthError:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="invalid_auth") from None
+        except XfinityError as err:
+            return self._failed("bill", previous, err)
+
+    async def _relogin(self) -> bool:
+        """Sign in again at most once an hour. Returns whether a new token was stored."""
+        now = time.monotonic()
+        if now - self._last_login < RELOGIN_INTERVAL_SECONDS:
+            return False
+        self._last_login = now
+        data = self.entry.data
+        username = data.get(CONF_USERNAME)
+        password = data.get(CONF_PASSWORD)
+        api_key = data.get(CONF_BROWSERLESS_API_KEY)
+        if not username or not password or not api_key:
+            return False
+        try:
+            tokens = await async_browserless_login(async_get_clientsession(self.hass), username, password, api_key)
+        except (XfinityLoginError, BrowserlessError) as err:
+            _LOGGER.warning("Automatic Xfinity sign-in failed: %s", type(err).__name__)
+            return False
+        refresh = tokens.get("refresh_token")
+        access = tokens.get("access_token")
+        identity = tokens.get("id_token")
+        if not isinstance(refresh, str) or not isinstance(access, str) or not isinstance(identity, str):
+            return False
+        self.client.refresh_token = refresh
+        self.client.access_token = access
+        self.client.id_token = identity
+        try:
+            lifetime = float(tokens["expires_in"])
+            self.client.expires_at = time.time() + lifetime if lifetime > 0 else 0
+        except (KeyError, TypeError, ValueError):
+            self.client.expires_at = 0
+        self._persist_refresh_token(refresh)
+        return True
 
     def _failed(self, name: str, previous: Any, err: Exception) -> dict[str, Any]:
         if name not in self._warned:

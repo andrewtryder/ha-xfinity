@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity, BinarySensorEntityDescription
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import XfinityCoordinator
 from .entity import XfinityEntity
@@ -44,7 +45,11 @@ SENSORS: tuple[XfinityBinarySensorDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities) -> None:
+async def async_setup_entry(
+    hass,
+    entry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
     coordinator: XfinityCoordinator = entry.runtime_data
     async_add_entities(XfinityBinarySensor(coordinator, entry.entry_id, description) for description in SENSORS)
 

@@ -6,7 +6,7 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 
-from .const import CONF_ADDRESS
+from .const import CONF_ADDRESS, CONF_BROWSERLESS_API_KEY, CONF_PASSWORD, CONF_USERNAME
 from .coordinator import XfinityCoordinator
 
 _SECTIONS = {"outage", "usage", "bill"}
@@ -55,5 +55,6 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry) -> dict
     coordinator: XfinityCoordinator = entry.runtime_data
     return {
         "address_configured": bool(entry.data.get(CONF_ADDRESS)),
+        "credentials_configured": bool(entry.data.get(CONF_USERNAME) and entry.data.get(CONF_PASSWORD) and entry.data.get(CONF_BROWSERLESS_API_KEY)),
         "data": _redact(coordinator.data, section=True),
     }
