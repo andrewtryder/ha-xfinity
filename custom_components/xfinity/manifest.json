@@ -1,0 +1,14 @@
+{
+  "domain": "xfinity",
+  "name": "Xfinity",
+  "codeowners": ["@andrewtryder"],
+  "config_flow": true,
+  "documentation": "https://github.com/andrewtryder/ha-xfinity",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/andrewtryder/ha-xfinity/issues",
+  "loggers": ["custom_components.xfinity"],
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.2.0"
+}

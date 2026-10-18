@@ -1,0 +1,73 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Xfinity",
+        "description": "Enter the service address and the refresh token printed by get_token.py on a desktop computer. Home Assistant stores that token and renews it. It does not open a browser.",
+        "data": {
+          "address": "Service address",
+          "refresh_token": "Refresh token"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Refresh Xfinity token",
+        "description": "The saved refresh token was rejected. Run get_token.py on a desktop and paste the new refresh token.",
+        "data": {
+          "refresh_token": "Refresh token"
+        }
+      },
+      "reconfigure": {
+        "title": "Xfinity address",
+        "description": "Update the service address used for outage checks.",
+        "data": {
+          "address": "Service address"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Xfinity rejected the refresh token.",
+      "invalid_client": "Xfinity rejected this integration's app credential. Update the integration.",
+      "invalid_address": "Enter a street address between 5 and 200 characters.",
+      "invalid_token": "Paste the refresh token with no spaces or line breaks.",
+      "cannot_connect": "Could not reach Xfinity."
+    },
+    "abort": {
+      "already_configured": "Xfinity is already configured.",
+      "single_instance_allowed": "Xfinity is already configured.",
+      "reauth_successful": "Xfinity token updated.",
+      "reconfigure_successful": "Xfinity address updated."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "data_used": {"name": "Data used"},
+      "data_allowance": {"name": "Data allowance"},
+      "data_used_percent": {"name": "Data used percent"},
+      "usage_cycle_end": {"name": "Usage cycle end"},
+      "data_policy": {"name": "Data policy"},
+      "outage_status": {
+        "name": "Outage status",
+        "state": {
+          "no_reported_incident": "No reported incident",
+          "incidents_reported": "Incidents reported",
+          "unknown": "Unknown"
+        }
+      },
+      "bill_status": {"name": "Bill status"},
+      "amount_due": {"name": "Amount due"},
+      "bill_due_date": {"name": "Bill due date"},
+      "past_due": {"name": "Past due amount"}
+    },
+    "binary_sensor": {
+      "active_outage": {"name": "Active outage"},
+      "scheduled_maintenance": {"name": "Scheduled maintenance"},
+      "past_due_bill": {"name": "Past due bill"}
+    }
+  },
+  "issues": {
+    "invalid_client": {
+      "title": "Xfinity needs an integration update",
+      "description": "Xfinity rejected this integration's application credential. Update the Xfinity integration. Pasting a new refresh token will not fix this."
+    }
+  }
+}

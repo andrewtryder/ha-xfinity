@@ -1,0 +1,21 @@
+{
+  "entity": {
+    "sensor": {
+      "data_used": {"default": "mdi:download-network"},
+      "data_allowance": {"default": "mdi:speedometer"},
+      "data_used_percent": {"default": "mdi:percent"},
+      "usage_cycle_end": {"default": "mdi:calendar-end"},
+      "data_policy": {"default": "mdi:file-document-outline"},
+      "outage_status": {"default": "mdi:access-point-network"},
+      "bill_status": {"default": "mdi:receipt-text"},
+      "amount_due": {"default": "mdi:currency-usd"},
+      "bill_due_date": {"default": "mdi:calendar-clock"},
+      "past_due": {"default": "mdi:calendar-alert"}
+    },
+    "binary_sensor": {
+      "active_outage": {"default": "mdi:alert"},
+      "scheduled_maintenance": {"default": "mdi:calendar-clock"},
+      "past_due_bill": {"default": "mdi:calendar-alert"}
+    }
+  }
+}
