@@ -1,4 +1,4 @@
-"""HTTP client and response parsing aligned with xfinity_api_probe.py."""
+"""HTTP client and response parsing for Xfinity."""
 
 from __future__ import annotations
 
