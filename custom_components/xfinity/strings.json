@@ -11,8 +11,10 @@
           "browserless_api_key": "Browserless API key"
         },
         "data_description": {
-          "password": "Stored in Home Assistant and sent to Browserless when the refresh token is rejected.",
-          "browserless_api_key": "From your Browserless account. Residential proxy units are used for each sign-in."
+          "address": "The street address where Xfinity service is installed. It is used for outage checks.",
+          "username": "Your Xfinity ID, usually the email address or username used to sign in at xfinity.com.",
+          "password": "The password for that Xfinity ID. It is stored in Home Assistant and sent to Browserless only when signing in.",
+          "browserless_api_key": "The API key from your Browserless account. Residential proxy units are used for each sign-in."
         }
       },
       "reauth_confirm": {
@@ -21,6 +23,10 @@
         "data": {
           "password": "Xfinity password",
           "browserless_api_key": "Browserless API key"
+        },
+        "data_description": {
+          "password": "The current password for the saved Xfinity ID.",
+          "browserless_api_key": "The API key from your Browserless account, used to run the sign-in browser."
         }
       },
       "reconfigure": {
@@ -29,6 +35,10 @@
         "data": {
           "address": "Service address",
           "browserless_api_key": "Browserless API key"
+        },
+        "data_description": {
+          "address": "The street address where Xfinity service is installed. It is used for outage checks.",
+          "browserless_api_key": "The replacement API key from your Browserless account."
         }
       }
     },

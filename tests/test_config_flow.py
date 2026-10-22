@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -25,6 +27,17 @@ USERNAME = "user@example.com"
 PASSWORD = "correct-password"
 API_KEY = "browserless-api-key"
 TOKEN = "refresh-token-value"
+INTEGRATION_DIR = Path(__file__).parents[1] / "custom_components" / "xfinity"
+
+
+def test_config_fields_have_translated_descriptions():
+    """Every displayed config field explains the value expected from the user."""
+    strings = json.loads((INTEGRATION_DIR / "strings.json").read_text())
+    translation = json.loads((INTEGRATION_DIR / "translations" / "en.json").read_text())
+    assert translation == strings
+
+    for step in strings["config"]["step"].values():
+        assert set(step["data_description"]) == set(step["data"])
 
 
 def test_input_validation():
