@@ -4,21 +4,15 @@ Thank you for contributing to the Home Assistant Xfinity integration!
 
 ## Prerequisites
 
-Development requires:
-- Python 3.14
-- Git
-- Virtual environment with test dependencies (`requirements_test.txt`)
-
-## Local Setup
-
-Set up a virtual environment and pre-commit hooks:
+Development requires Python 3.14.2 or newer, Git, uv, and actionlint 1.7.12 (available from the [actionlint releases](https://github.com/rhysd/actionlint/releases)). The validation script installs pinned Python dependencies into a temporary environment. To install hooks in a persistent environment:
 
 ```bash
-python3 -m venv .venv-test
-source .venv-test/bin/activate
-pip install -r requirements_test.txt
-pre-commit install
+python3.14 -m venv .venv-test
+uv pip sync --python .venv-test/bin/python requirements-dev.lock
+.venv-test/bin/pre-commit install
 ```
+
+Regenerate the lock after changing requirements with `uv pip compile --python-version 3.14.2 --universal requirements-dev.txt -o requirements-dev.lock`. This retains the existing requirements-based Python setup.
 
 ## Local Validation Contract
 
@@ -34,7 +28,9 @@ This automated script executes the complete local hygiene and quality gate:
 3. Ruff linting and formatting verification (`ruff check .`, `ruff format --check .`)
 4. Actionlint workflow linting
 5. Pytest suite with component statement coverage enforcement (`--cov-fail-under=90`, currently achieving >90.3%)
-6. Clean git working tree verification
+6. Detection of changes made to tracked files, the index, or untracked files
+
+Ruff lint checks include `custom_components/xfinity`. Formatting currently excludes that directory: `__init__.py`, `api.py`, `binary_sensor.py`, `config_flow.py`, `const.py`, `coordinator.py`, `diagnostics.py`, `entity.py`, `login.py`, and `sensor.py` need formatting. In a separate runtime-source formatting follow-up, review and format those files, rerun all tests, then remove the formatter exclusions from the hook and local script.
 
 ## Pull Request Guidelines
 

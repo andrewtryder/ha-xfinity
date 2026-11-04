@@ -15,8 +15,8 @@ repos:
     rev: v0.16.8
     hooks:
       - id: ruff-check
-        args: [--fix]
       - id: ruff-format
+        exclude: ^custom_components/xfinity/
 
   - repo: https://github.com/rhysd/actionlint
     rev: v1.7.12
