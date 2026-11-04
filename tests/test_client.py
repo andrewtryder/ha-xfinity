@@ -22,12 +22,24 @@ TOKEN = {
     "expires_in": 3600,
     "refresh_token": "rotated-refresh-token",
 }
-USAGE = {"data": {"accountByServiceAccountId": {"internet": {"usage": {"monthlyUsage": [{
-    "startDate": "2026-10-01",
-    "endDate": "2026-10-31",
-    "policy": "unlimited",
-    "currentUsage": {"value": 10, "unit": "GB"},
-}]}}}}}
+USAGE = {
+    "data": {
+        "accountByServiceAccountId": {
+            "internet": {
+                "usage": {
+                    "monthlyUsage": [
+                        {
+                            "startDate": "2026-10-01",
+                            "endDate": "2026-10-31",
+                            "policy": "unlimited",
+                            "currentUsage": {"value": 10, "unit": "GB"},
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
 
 
 class _Response:
@@ -65,7 +77,12 @@ class _Session:
 
 
 def _client(responses, callback=None):
-    return XfinityClient(_Session(responses), "21 Main Street", "refresh-token-value", on_tokens_rotated=callback)
+    return XfinityClient(
+        _Session(responses),
+        "21 Main Street",
+        "refresh-token-value",
+        on_tokens_rotated=callback,
+    )
 
 
 async def test_refresh_persists_rotation_before_returning():
@@ -77,12 +94,14 @@ async def test_refresh_persists_rotation_before_returning():
 
 
 async def test_graphql_401_retries_once():
-    client = _client([
-        _Response(200, TOKEN),
-        _Response(401, {"error": "expired"}),
-        _Response(200, TOKEN),
-        _Response(200, USAGE),
-    ])
+    client = _client(
+        [
+            _Response(200, TOKEN),
+            _Response(401, {"error": "expired"}),
+            _Response(200, TOKEN),
+            _Response(200, USAGE),
+        ]
+    )
     result = await client.async_fetch_usage(date(2026, 10, 18))
     assert result["used_gb"] == 10
     assert [url for _, url in client._session.calls].count(GRAPHQL_URL) == 2
