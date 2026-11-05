@@ -32,15 +32,19 @@ jobs:
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
-          cache-dependency-glob: requirements-dev.lock
-      - run: |
-          uv venv --python 3.14 .venv
-          uv pip sync --python .venv/bin/python requirements-dev.lock
-      - run: |
-          .venv/bin/pre-commit run --all-files
-          .venv/bin/ruff check .
-          .venv/bin/ruff format --check . --exclude custom_components/xfinity
-          .venv/bin/pytest --disable-socket --allow-unix-socket
+          cache-dependency-glob: "uv.lock"
+      - name: Verify lockfile freshness
+        run: uv lock --check
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Run pre-commit
+        run: uv run --locked pre-commit run --all-files
+      - name: Run Ruff lint
+        run: uv run --locked ruff check .
+      - name: Run Ruff format check
+        run: uv run --locked ruff format --check . --exclude custom_components/xfinity
+      - name: Run pytest
+        run: uv run --locked pytest --disable-socket --allow-unix-socket
 
   pytest-latest:
     runs-on: ubuntu-latest
@@ -52,7 +56,9 @@ jobs:
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
         with:
           enable-cache: true
-      - run: |
-          uv venv --python 3.14 .venv
-          uv pip install --python .venv/bin/python --upgrade pytest pytest-cov pytest-socket pytest-homeassistant-custom-component
-      - run: .venv/bin/pytest --disable-socket --allow-unix-socket
+      - name: Install latest dependencies and run tests
+        run: |
+          uv venv --python 3.14 .venv-latest
+          uv pip install --python .venv-latest/bin/python --upgrade pytest pytest-cov pytest-socket pytest-homeassistant-custom-component
+          .venv-latest/bin/python -c "from homeassistant.const import __version__; import importlib.metadata as m; print('Latest lane: HA={}, phacc={}'.format(__version__, m.version('pytest-homeassistant-custom-component')))"
+          .venv-latest/bin/pytest --disable-socket --allow-unix-socket
