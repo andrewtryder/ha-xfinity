@@ -50,11 +50,17 @@ def _redact(value: Any, *, section: bool = False) -> Any:
     return value
 
 
-async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(
+    hass: HomeAssistant, entry
+) -> dict[str, Any]:
     """Return coordinator data without the address or any token."""
     coordinator: XfinityCoordinator = entry.runtime_data
     return {
         "address_configured": bool(entry.data.get(CONF_ADDRESS)),
-        "credentials_configured": bool(entry.data.get(CONF_USERNAME) and entry.data.get(CONF_PASSWORD) and entry.data.get(CONF_BROWSERLESS_API_KEY)),
+        "credentials_configured": bool(
+            entry.data.get(CONF_USERNAME)
+            and entry.data.get(CONF_PASSWORD)
+            and entry.data.get(CONF_BROWSERLESS_API_KEY)
+        ),
         "data": _redact(coordinator.data, section=True),
     }

@@ -14,7 +14,13 @@ CONF_REFRESH_TOKEN = "refresh_token"
 RELOGIN_INTERVAL_SECONDS = 3600
 
 # Keys written by 0.1.0. Removed from the config entry on setup.
-STALE_ENTRY_KEYS = ("access_token", "id_token", "expires_at", "client_secret", "token_file")
+STALE_ENTRY_KEYS = (
+    "access_token",
+    "id_token",
+    "expires_at",
+    "client_secret",
+    "token_file",
+)
 
 OUTAGE_STATUS_OPTIONS = ("no_reported_incident", "incidents_reported", "unknown")
 

@@ -52,7 +52,7 @@ uv run --locked pre-commit run --all-files
 
 echo "==> [4/7] Running Ruff lint and formatting checks"
 uv run --locked ruff check .
-uv run --locked ruff format --check . --exclude custom_components/xfinity
+uv run --locked ruff format --check .
 
 echo "==> [5/7] Running actionlint workflow validation"
 actionlint .github/workflows/*.yml

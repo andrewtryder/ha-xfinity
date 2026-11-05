@@ -25,7 +25,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: XfinityConfigEntry) -> b
     """Set up Xfinity from a config entry."""
     stale = [key for key in STALE_ENTRY_KEYS if key in entry.data]
     if stale:
-        hass.config_entries.async_update_entry(entry, data={key: value for key, value in entry.data.items() if key not in stale})
+        hass.config_entries.async_update_entry(
+            entry,
+            data={key: value for key, value in entry.data.items() if key not in stale},
+        )
     coordinator = XfinityCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator

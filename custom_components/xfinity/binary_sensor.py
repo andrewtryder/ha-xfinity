@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from homeassistant.components.binary_sensor import BinarySensorDeviceClass, BinarySensorEntity, BinarySensorEntityDescription
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+    BinarySensorEntityDescription,
+)
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .coordinator import XfinityCoordinator
@@ -51,7 +55,10 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator: XfinityCoordinator = entry.runtime_data
-    async_add_entities(XfinityBinarySensor(coordinator, entry.entry_id, description) for description in SENSORS)
+    async_add_entities(
+        XfinityBinarySensor(coordinator, entry.entry_id, description)
+        for description in SENSORS
+    )
 
 
 class XfinityBinarySensor(XfinityEntity, BinarySensorEntity):
@@ -59,7 +66,12 @@ class XfinityBinarySensor(XfinityEntity, BinarySensorEntity):
 
     entity_description: XfinityBinarySensorDescription
 
-    def __init__(self, coordinator: XfinityCoordinator, entry_id: str, description: XfinityBinarySensorDescription) -> None:
+    def __init__(
+        self,
+        coordinator: XfinityCoordinator,
+        entry_id: str,
+        description: XfinityBinarySensorDescription,
+    ) -> None:
         super().__init__(coordinator, entry_id, description.section, description.key)
         self.entity_description = description
 

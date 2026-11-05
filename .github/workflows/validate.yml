@@ -42,7 +42,7 @@ jobs:
       - name: Run Ruff lint
         run: uv run --locked ruff check .
       - name: Run Ruff format check
-        run: uv run --locked ruff format --check . --exclude custom_components/xfinity
+        run: uv run --locked ruff format --check .
       - name: Run pytest
         run: uv run --locked pytest --disable-socket --allow-unix-socket
 

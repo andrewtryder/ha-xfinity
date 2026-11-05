@@ -7,7 +7,12 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+    SensorStateClass,
+)
 from homeassistant.const import PERCENTAGE, UnitOfInformation
 from homeassistant.helpers.entity import EntityCategory
 
@@ -152,7 +157,10 @@ async def async_setup_entry(
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
     coordinator: XfinityCoordinator = entry.runtime_data
-    async_add_entities(XfinitySensor(coordinator, entry.entry_id, description) for description in SENSORS)
+    async_add_entities(
+        XfinitySensor(coordinator, entry.entry_id, description)
+        for description in SENSORS
+    )
 
 
 class XfinitySensor(XfinityEntity, SensorEntity):
@@ -160,7 +168,12 @@ class XfinitySensor(XfinityEntity, SensorEntity):
 
     entity_description: XfinitySensorDescription
 
-    def __init__(self, coordinator: XfinityCoordinator, entry_id: str, description: XfinitySensorDescription) -> None:
+    def __init__(
+        self,
+        coordinator: XfinityCoordinator,
+        entry_id: str,
+        description: XfinitySensorDescription,
+    ) -> None:
         super().__init__(coordinator, entry_id, description.section, description.key)
         self.entity_description = description
 
