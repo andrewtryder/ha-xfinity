@@ -57,7 +57,7 @@ You can update the service address or Browserless API key later with **Reconfigu
 ## Limitations, safety, and privacy
 
 - **Browserless credential handling:** Browserless is a third-party cloud browser service. Your Xfinity username and password are sent to Browserless only when signing in: during initial setup, when you reauthenticate, and at most once per hour if Xfinity rejects the stored refresh token. After sign-in, Home Assistant renews tokens directly with Xfinity.
-- **Local storage and diagnostics:** your service address, Xfinity username, Xfinity password, Browserless API key, and refresh token are stored in the Home Assistant config entry; access tokens remain in memory only. Downloaded diagnostics automatically omit tokens, credentials, and the service address.
+- **Local storage and diagnostics:** your service address, Xfinity username, Xfinity password, Browserless API key, and refresh token are stored in the Home Assistant config entry; access tokens remain in memory only. Diagnostics replace those config-entry fields with boolean flags (`address_configured`, `credentials_configured`) and include only allowlisted outage, usage, and billing keys, but do not scrub free-text values such as outage messages (`customer_message`)—always review any diagnostic download before sharing it.
 - **Single account and verification limits:** only one Xfinity account is supported per Home Assistant instance, and verification codes cannot be typed directly inside Home Assistant.
 - **Removing the integration:** deleting **Xfinity** from **Settings → Devices & services** removes the device, entities, and locally stored credentials and tokens.
 
@@ -68,4 +68,4 @@ You can update the service address or Browserless API key later with **Reconfigu
 
 ## Support and license
 
-Open a [GitHub issue](https://github.com/andrewtryder/ha-xfinity/issues) for reproducible problems, and never include credentials, tokens, or personal billing details. Distributed under the [MIT License](LICENSE).
+Open a [GitHub issue](https://github.com/andrewtryder/ha-xfinity/issues) for reproducible problems. Review any diagnostic download before sharing it, and never include credentials, tokens, service addresses, or personal billing details. Distributed under the [MIT License](LICENSE).
