@@ -4,38 +4,55 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   hacs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: hacs/action@main
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa # main
         with:
           category: integration
 
   hassfest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: home-assistant/actions/hassfest@master
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: home-assistant/actions/hassfest@06749dd8c0b54f350bc69c8752456cee498808a3 # master
 
   pytest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
-      - run: pip install -r requirements_test.txt
-      - run: pytest
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          enable-cache: true
+          cache-dependency-glob: requirements-dev.lock
+      - run: |
+          uv venv --python 3.14 .venv
+          uv pip sync --python .venv/bin/python requirements-dev.lock
+      - run: |
+          .venv/bin/pre-commit run --all-files
+          .venv/bin/ruff check .
+          .venv/bin/ruff format --check . --exclude custom_components/xfinity
+          .venv/bin/pytest --disable-socket --allow-unix-socket
 
   pytest-latest:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.14"
-      - run: pip install pytest
-      - run: pip install --upgrade pytest-homeassistant-custom-component
-      - run: pytest
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5.4.2
+        with:
+          enable-cache: true
+      - run: |
+          uv venv --python 3.14 .venv
+          uv pip install --python .venv/bin/python --upgrade pytest pytest-cov pytest-socket pytest-homeassistant-custom-component
+      - run: .venv/bin/pytest --disable-socket --allow-unix-socket

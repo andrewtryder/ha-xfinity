@@ -4,8 +4,20 @@
 .venv/
 .venv-test/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 *.egg-info/
 .coverage
+.coverage.*
+coverage.xml
+coverage.json
 htmlcov/
+.DS_Store
+
+# Local Home Assistant runtime state
+.storage/
+*config_entries*
+home-assistant.log*
+home-assistant_v2.db*
