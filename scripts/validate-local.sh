@@ -38,29 +38,29 @@ finish() {
 }
 trap finish EXIT
 
-echo "==> [1/6] Verifying toolchain and interpreter"
-command -v python3.14 >/dev/null 2>&1 || { echo "Error: Python 3.14.2 or newer is required" >&2; exit 1; }
-command -v uv >/dev/null 2>&1 || { echo "Error: uv is required" >&2; exit 1; }
+echo "==> [1/7] Verifying toolchain and interpreter"
+command -v uv >/dev/null 2>&1 || { echo "Error: uv is required but not installed" >&2; exit 1; }
 command -v actionlint >/dev/null 2>&1 || { echo "Error: actionlint is required; see CONTRIBUTING.md" >&2; exit 1; }
-python3.14 -c 'import sys; assert sys.version_info >= (3, 14, 2), "Python 3.14.2 or newer is required"; print(sys.version)'
-python3.14 -m venv "$snapshot_dir/venv"
-uv pip sync --python "$snapshot_dir/venv/bin/python" requirements-dev.lock
-export PATH="$snapshot_dir/venv/bin:$PATH"
+uv sync --locked
+uv run --locked python -c 'import sys; assert sys.version_info >= (3, 14, 2), "Python 3.14.2 or newer is required"; print(sys.version)'
 
-echo "==> [2/6] Running pre-commit hooks on all files"
-pre-commit run --all-files
+echo "==> [2/7] Verifying dependency lockfile freshness"
+uv lock --check
 
-echo "==> [3/6] Running Ruff lint and formatting checks"
-ruff check .
-ruff format --check . --exclude custom_components/xfinity
+echo "==> [3/7] Running pre-commit hooks on all files"
+uv run --locked pre-commit run --all-files
 
-echo "==> [4/6] Running actionlint workflow validation"
+echo "==> [4/7] Running Ruff lint and formatting checks"
+uv run --locked ruff check .
+uv run --locked ruff format --check . --exclude custom_components/xfinity
+
+echo "==> [5/7] Running actionlint workflow validation"
 actionlint .github/workflows/*.yml
 
-echo "==> [5/6] Running Python test suite with coverage enforcement (>=90% gate)"
-pytest --disable-socket --allow-unix-socket
+echo "==> [6/7] Running Python test suite with coverage enforcement (>=90% gate)"
+uv run --locked pytest --disable-socket --allow-unix-socket
 
-echo "==> [6/6] Checking for changes made by validation"
+echo "==> [7/7] Checking for changes made by validation"
 check_changes
 
 echo "==> Local validation passed successfully!"
