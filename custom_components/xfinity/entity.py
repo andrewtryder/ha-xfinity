@@ -17,7 +17,9 @@ class XfinityEntity(CoordinatorEntity[XfinityCoordinator]):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: XfinityCoordinator, entry_id: str, section: str, key: str) -> None:
+    def __init__(
+        self, coordinator: XfinityCoordinator, entry_id: str, section: str, key: str
+    ) -> None:
         super().__init__(coordinator)
         self._section = section
         self._attr_unique_id = f"{entry_id}_{key}"

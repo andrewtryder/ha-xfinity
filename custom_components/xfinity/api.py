@@ -78,10 +78,19 @@ def outage_summary(data: dict, now=None) -> dict:
     if not isinstance(outages, list):
         return {"status": "unknown", "note": "Outage list is not a list"}
     if not outages:
-        return {"status": "no_reported_incident", "active_outage": False, "scheduled_maintenance": False, "incidents": []}
+        return {
+            "status": "no_reported_incident",
+            "active_outage": False,
+            "scheduled_maintenance": False,
+            "incidents": [],
+        }
     message = data.get("customerMessage")
     if not isinstance(message, dict):
-        return {"status": "unknown", "incident_count": len(outages), "scheduled_maintenance": False}
+        return {
+            "status": "unknown",
+            "incident_count": len(outages),
+            "scheduled_maintenance": False,
+        }
     now = now or datetime.now(timezone.utc)
     summaries = []
     for index, outage in enumerate(outages):
@@ -101,23 +110,35 @@ def outage_summary(data: dict, now=None) -> dict:
         else:
             classification = "unknown"
         details = message.get("messages")
-        summaries.append({
-            "index": index,
-            "classification": classification,
-            "outage_id": outage.get("outageId"),
-            "planned": planned,
-            "outage_type": message.get("outageType"),
-            "affected_services": outage.get("services"),
-            "start": start,
-            "estimated_restoration": as_iso(message.get("etr")),
-            "estimated_restoration_display": message.get("etrOutputString"),
-            "summary": details.get("shortDescription") if isinstance(details, dict) else None,
-            "customer_message": message.get("customerFacingText"),
-        })
+        summaries.append(
+            {
+                "index": index,
+                "classification": classification,
+                "outage_id": outage.get("outageId"),
+                "planned": planned,
+                "outage_type": message.get("outageType"),
+                "affected_services": outage.get("services"),
+                "start": start,
+                "estimated_restoration": as_iso(message.get("etr")),
+                "estimated_restoration_display": message.get("etrOutputString"),
+                "summary": details.get("shortDescription")
+                if isinstance(details, dict)
+                else None,
+                "customer_message": message.get("customerFacingText"),
+            }
+        )
     return {
-        "status": "unknown" if any(item["classification"] == "unknown" for item in summaries) else "incidents_reported",
-        "active_outage": any(item["classification"] in ("planned_maintenance_underway", "unplanned_outage") for item in summaries),
-        "scheduled_maintenance": any(item["classification"] == "scheduled_maintenance" for item in summaries),
+        "status": "unknown"
+        if any(item["classification"] == "unknown" for item in summaries)
+        else "incidents_reported",
+        "active_outage": any(
+            item["classification"]
+            in ("planned_maintenance_underway", "unplanned_outage")
+            for item in summaries
+        ),
+        "scheduled_maintenance": any(
+            item["classification"] == "scheduled_maintenance" for item in summaries
+        ),
         "incident_count": len(outages),
         "incidents": summaries,
     }
@@ -128,7 +149,7 @@ def to_gb(quantity) -> float | None:
         return None
     try:
         value = float(quantity["value"])
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return None
     if value < 0:
         return None
@@ -147,7 +168,9 @@ def usage_summary(data: dict, today=None) -> dict:
     if data.get("errors"):
         raise XfinityError("GraphQL reported errors")
     try:
-        months = data["data"]["accountByServiceAccountId"]["internet"]["usage"]["monthlyUsage"]
+        months = data["data"]["accountByServiceAccountId"]["internet"]["usage"][
+            "monthlyUsage"
+        ]
     except (KeyError, TypeError) as err:
         raise XfinityError("Usage response missing expected fields") from err
     if not isinstance(months, list):
@@ -162,7 +185,7 @@ def usage_summary(data: dict, today=None) -> dict:
             end = date.fromisoformat(month["endDate"])
             if start <= end and start <= today:
                 valid.append((start, end, month))
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             continue
     current = [item for item in valid if item[0] <= today <= item[1]]
     choices = current or valid
@@ -174,15 +197,21 @@ def usage_summary(data: dict, today=None) -> dict:
     if str(latest.get("policy", "")).lower() == "unlimited":
         allowed = None
     return {
-        "status": ("ok" if used is not None else "incomplete_usage") if current else "historical_only",
+        "status": ("ok" if used is not None else "incomplete_usage")
+        if current
+        else "historical_only",
         "start_date": latest.get("startDate"),
         "end_date": latest.get("endDate"),
         "days_remaining": latest.get("daysRemaining"),
         "policy": latest.get("policy"),
         "used_gb": used,
         "allowance_gb": allowed,
-        "remaining_gb": round(max(0, allowed - used), 2) if used is not None and allowed is not None else None,
-        "used_percent": round(100 * used / allowed, 1) if used is not None and allowed and allowed > 0 else None,
+        "remaining_gb": round(max(0, allowed - used), 2)
+        if used is not None and allowed is not None
+        else None,
+        "used_percent": round(100 * used / allowed, 1)
+        if used is not None and allowed and allowed > 0
+        else None,
     }
 
 
@@ -191,7 +220,7 @@ def _money(quantity) -> float | None:
         return None
     try:
         value = round(float(quantity["value"]), 2)
-    except (KeyError, TypeError, ValueError):
+    except KeyError, TypeError, ValueError:
         return None
     return value if value >= 0 else None
 
@@ -201,7 +230,9 @@ def bill_summary(data: dict) -> dict:
     if data.get("errors"):
         raise XfinityError("GraphQL reported errors")
     try:
-        account = data["data"]["accountByServiceAccountId"]["postPaidBillingAccount"]["coreBillingAccount"]["account"]
+        account = data["data"]["accountByServiceAccountId"]["postPaidBillingAccount"][
+            "coreBillingAccount"
+        ]["account"]
     except (KeyError, TypeError) as err:
         raise XfinityError("Bill response missing expected fields") from err
     if not isinstance(account, dict):
@@ -254,7 +285,9 @@ class XfinityClient:
         self._on_tokens_rotated = on_tokens_rotated
         self._refresh_lock = asyncio.Lock()
 
-    async def _send(self, method: str, url: str, **kwargs) -> tuple[int, dict[str, str], bytes]:
+    async def _send(
+        self, method: str, url: str, **kwargs
+    ) -> tuple[int, dict[str, str], bytes]:
         import aiohttp
 
         try:
@@ -284,7 +317,12 @@ class XfinityClient:
     async def async_ensure_token(self, *, force: bool = False) -> None:
         """Refresh when the access token is missing, expired, or forced."""
         async with self._refresh_lock:
-            if not force and self.access_token and self.id_token and self.expires_at > time.time() + 120:
+            if (
+                not force
+                and self.access_token
+                and self.id_token
+                and self.expires_at > time.time() + 120
+            ):
                 return
             await self._refresh_locked()
 
@@ -320,7 +358,12 @@ class XfinityClient:
             raise XfinityConnectionError(f"token endpoint returned HTTP {status}")
         access = payload.get("access_token")
         identity = payload.get("id_token")
-        if not isinstance(access, str) or not access or not isinstance(identity, str) or not identity:
+        if (
+            not isinstance(access, str)
+            or not access
+            or not isinstance(identity, str)
+            or not identity
+        ):
             raise XfinityAuthError("refresh rejected")
         previous = self.refresh_token
         self.access_token = access
@@ -331,7 +374,7 @@ class XfinityClient:
         try:
             lifetime = float(payload["expires_in"])
             self.expires_at = time.time() + lifetime if lifetime > 0 else 0
-        except (KeyError, TypeError, ValueError):
+        except KeyError, TypeError, ValueError:
             self.expires_at = 0
         if self.refresh_token != previous and self._on_tokens_rotated is not None:
             self._on_tokens_rotated(self.refresh_token)
@@ -352,7 +395,11 @@ class XfinityClient:
         status, _, body = await self._send(
             "GET",
             OUTAGE_STATUS_URL,
-            params={"includeIdealOutage": "true", "tokenizeDateTime": "true", "address": self.address},
+            params={
+                "includeIdealOutage": "true",
+                "tokenizeDateTime": "true",
+                "address": self.address,
+            },
             headers={**COMMON_WEB_HEADERS, "Authorization": f"Bearer {token}"},
         )
         if status < 200 or status >= 300:
@@ -367,7 +414,9 @@ class XfinityClient:
 
     async def async_fetch_usage(self, today: date | None = None) -> dict:
         """Return internet usage for the cycle containing today."""
-        payload = await self._graphql(USAGE_OPERATION, USAGE_QUERY, operation_id=USAGE_OPERATION_ID)
+        payload = await self._graphql(
+            USAGE_OPERATION, USAGE_QUERY, operation_id=USAGE_OPERATION_ID
+        )
         return usage_summary(payload, today)
 
     async def async_fetch_bill(self) -> dict:
@@ -375,7 +424,9 @@ class XfinityClient:
         payload = await self._graphql(BILL_OPERATION, BILL_QUERY)
         return bill_summary(payload)
 
-    async def _graphql(self, operation: str, query: str, *, operation_id: str | None = None) -> dict:
+    async def _graphql(
+        self, operation: str, query: str, *, operation_id: str | None = None
+    ) -> dict:
         await self.async_ensure_token()
         try:
             return await self._graphql_request(operation, query, operation_id)
@@ -383,7 +434,9 @@ class XfinityClient:
             await self.async_ensure_token(force=True)
             return await self._graphql_request(operation, query, operation_id)
 
-    async def _graphql_request(self, operation: str, query: str, operation_id: str | None) -> dict:
+    async def _graphql_request(
+        self, operation: str, query: str, operation_id: str | None
+    ) -> dict:
         headers = dict(_MOBILE_HEADERS)
         headers["Authorization"] = f"Bearer {self.access_token}"
         headers["x-id-token"] = self.id_token

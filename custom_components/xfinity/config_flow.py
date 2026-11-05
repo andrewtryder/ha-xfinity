@@ -21,24 +21,36 @@ from .const import (
     TOKEN_MAX_LENGTH,
     TOKEN_MIN_LENGTH,
 )
-from .login import BrowserlessError, XfinityLoginError, XfinityLoginRejected, XfinityMfaRequired, async_browserless_login
+from .login import (
+    BrowserlessError,
+    XfinityLoginError,
+    XfinityLoginRejected,
+    XfinityMfaRequired,
+    async_browserless_login,
+)
 
-USER_SCHEMA = vol.Schema({
-    vol.Required(CONF_ADDRESS): str,
-    vol.Required(CONF_USERNAME): str,
-    vol.Required(CONF_PASSWORD): str,
-    vol.Required(CONF_BROWSERLESS_API_KEY): str,
-})
+USER_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ADDRESS): str,
+        vol.Required(CONF_USERNAME): str,
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_BROWSERLESS_API_KEY): str,
+    }
+)
 
-REAUTH_SCHEMA = vol.Schema({
-    vol.Required(CONF_PASSWORD): str,
-    vol.Required(CONF_BROWSERLESS_API_KEY): str,
-})
+REAUTH_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_PASSWORD): str,
+        vol.Required(CONF_BROWSERLESS_API_KEY): str,
+    }
+)
 
-RECONFIGURE_SCHEMA = vol.Schema({
-    vol.Required(CONF_ADDRESS): str,
-    vol.Required(CONF_BROWSERLESS_API_KEY): str,
-})
+RECONFIGURE_SCHEMA = vol.Schema(
+    {
+        vol.Required(CONF_ADDRESS): str,
+        vol.Required(CONF_BROWSERLESS_API_KEY): str,
+    }
+)
 
 
 def clean_address(value: object) -> str:
@@ -77,8 +89,12 @@ def clean_api_key(value: object) -> str:
     return clean_secret(value, minimum=TOKEN_MIN_LENGTH, kind="invalid browserless key")
 
 
-async def _login(hass: HomeAssistant, username: str, password: str, api_key: str) -> str:
-    tokens = await async_browserless_login(async_get_clientsession(hass), username, password, api_key)
+async def _login(
+    hass: HomeAssistant, username: str, password: str, api_key: str
+) -> str:
+    tokens = await async_browserless_login(
+        async_get_clientsession(hass), username, password, api_key
+    )
     refresh = tokens.get("refresh_token")
     if not isinstance(refresh, str) or not refresh:
         raise XfinityLoginRejected("token exchange rejected")
@@ -120,12 +136,16 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_REFRESH_TOKEN: refresh,
                     },
                 )
-        return self.async_show_form(step_id="user", data_schema=USER_SCHEMA, errors=errors)
+        return self.async_show_form(
+            step_id="user", data_schema=USER_SCHEMA, errors=errors
+        )
 
     async def async_step_reauth(self, entry_data: dict) -> ConfigFlowResult:
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input: dict | None = None) -> ConfigFlowResult:
+    async def async_step_reauth_confirm(
+        self, user_input: dict | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         entry = self._get_reauth_entry()
         if user_input is not None:
@@ -155,9 +175,13 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_REFRESH_TOKEN: refresh,
                     },
                 )
-        return self.async_show_form(step_id="reauth_confirm", data_schema=REAUTH_SCHEMA, errors=errors)
+        return self.async_show_form(
+            step_id="reauth_confirm", data_schema=REAUTH_SCHEMA, errors=errors
+        )
 
-    async def async_step_reconfigure(self, user_input: dict | None = None) -> ConfigFlowResult:
+    async def async_step_reconfigure(
+        self, user_input: dict | None = None
+    ) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         entry = self._get_reconfigure_entry()
         if user_input is not None:
@@ -169,7 +193,10 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 return self.async_update_reload_and_abort(
                     entry,
-                    data_updates={CONF_ADDRESS: address, CONF_BROWSERLESS_API_KEY: api_key},
+                    data_updates={
+                        CONF_ADDRESS: address,
+                        CONF_BROWSERLESS_API_KEY: api_key,
+                    },
                 )
         return self.async_show_form(
             step_id="reconfigure",

@@ -9,7 +9,14 @@ import secrets
 from urllib.parse import parse_qs, urlencode, urlparse
 import uuid
 
-from .const import AUTH_TOKEN_URL, AUTH_URL, CLIENT_ID, CLIENT_SECRET, REDIRECT_URI, TOKEN_REDIRECT_URI
+from .const import (
+    AUTH_TOKEN_URL,
+    AUTH_URL,
+    CLIENT_ID,
+    CLIENT_SECRET,
+    REDIRECT_URI,
+    TOKEN_REDIRECT_URI,
+)
 
 BROWSERLESS_URL = "https://production-sfo.browserless.io/stealth/bql"
 _LOGIN = """
@@ -45,24 +52,30 @@ class BrowserlessError(XfinityLoginError):
 def pkce_authorize_url() -> tuple[str, str, str, str]:
     """Return the authorize URL, PKCE verifier, activity id, and state."""
     verifier = base64.urlsafe_b64encode(os.urandom(32)).decode().rstrip("=")
-    challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).decode().rstrip("=")
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
+        .decode()
+        .rstrip("=")
+    )
     activity = str(uuid.uuid4())
     state = secrets.token_urlsafe(24)
-    query = urlencode({
-        "redirect_uri": REDIRECT_URI,
-        "client_id": CLIENT_ID,
-        "response_type": "code",
-        "prompt": "select_account",
-        "state": state,
-        "scope": "profile",
-        "code_challenge": challenge,
-        "code_challenge_method": "S256",
-        "activity_id": activity,
-        "active_x1_account_count": "true",
-        "rm_hint": "true",
-        "partner_id": "comcast",
-        "mso_partner_hint": "true",
-    })
+    query = urlencode(
+        {
+            "redirect_uri": REDIRECT_URI,
+            "client_id": CLIENT_ID,
+            "response_type": "code",
+            "prompt": "select_account",
+            "state": state,
+            "scope": "profile",
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "activity_id": activity,
+            "active_x1_account_count": "true",
+            "rm_hint": "true",
+            "partner_id": "comcast",
+            "mso_partner_hint": "true",
+        }
+    )
     return f"{AUTH_URL}?{query}", verifier, activity, state
 
 
@@ -89,7 +102,9 @@ def _failed_step(errors: list, data: dict) -> XfinityLoginError:
     return BrowserlessError("browserless login did not finish")
 
 
-async def async_browserless_login(session, username: str, password: str, api_key: str) -> dict:
+async def async_browserless_login(
+    session, username: str, password: str, api_key: str
+) -> dict:
     """Sign in with Browserless and return the token response. Raises on failure."""
     import aiohttp
 
@@ -125,7 +140,9 @@ async def async_browserless_login(session, username: str, password: str, api_key
     if not isinstance(payload, dict):
         raise BrowserlessError("browserless response was not an object")
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
-    callback = ((data.get("callback") or {}) if isinstance(data.get("callback"), dict) else {}).get("url")
+    callback = (
+        (data.get("callback") or {}) if isinstance(data.get("callback"), dict) else {}
+    ).get("url")
     if payload.get("errors") or not isinstance(callback, str):
         raise _failed_step(payload.get("errors") or [], data) from None
     code = code_from_callback(callback, state)
@@ -162,12 +179,18 @@ async def _exchange(session, code: str, verifier: str, activity: str) -> dict:
             if response.status in (400, 401):
                 raise XfinityLoginRejected("token exchange rejected")
             if response.status < 200 or response.status >= 300:
-                raise BrowserlessError(f"token endpoint returned HTTP {response.status}")
+                raise BrowserlessError(
+                    f"token endpoint returned HTTP {response.status}"
+                )
             payload = await response.json(content_type=None)
     except aiohttp.ClientError as err:
         raise BrowserlessError("token exchange failed") from err
     except TimeoutError as err:
         raise BrowserlessError("token exchange failed") from err
-    if not isinstance(payload, dict) or not payload.get("refresh_token") or not payload.get("access_token"):
+    if (
+        not isinstance(payload, dict)
+        or not payload.get("refresh_token")
+        or not payload.get("access_token")
+    ):
         raise XfinityLoginRejected("token exchange rejected")
     return payload
