@@ -22,13 +22,15 @@ A failure in one request (outage, usage, or bill) does not clear the last known 
 
 ## Requirements and compatibility
 
-- Home Assistant **2026.8.0 or newer** and HACS.
+- Home Assistant **2026.8.0 or newer** and HACS (or the built-in Home Assistant Marketplace in **2026.11+**).
 - One residential Xfinity account (username, password, and service address).
 - A [Browserless](https://www.browserless.io) API key. Each sign-in uses a residential proxy session in Browserless so Home Assistant does not need to run a local browser.
 
-## Install with HACS
+## Install with HACS or Home Assistant Marketplace
 
-1. In HACS, add `https://github.com/andrewtryder/ha-xfinity` as a custom repository in the **Integration** category, or use the HACS badge above.
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=andrewtryder&repository=ha-xfinity&category=integration)
+
+1. Click the **Open your Home Assistant instance** button above (backwards compatible: opens **HACS** on earlier versions and the built-in **Home Assistant Marketplace** on **2026.11+**), or manually add `https://github.com/andrewtryder/ha-xfinity` as a custom repository in the **Integration** category.
 2. Find and download **Xfinity**.
 3. Restart Home Assistant.
 
