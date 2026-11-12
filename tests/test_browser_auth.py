@@ -75,16 +75,6 @@ def test_validate_and_extract_code_valid():
     )
     assert code3 == "oi-abcdef123456"
 
-    # Raw code paste
-    code_raw = validate_and_extract_code("oi-abcdef1234567890", "mystate")
-    assert code_raw == "oi-abcdef1234567890"
-
-    # Query string only
-    code_query = validate_and_extract_code(
-        "?code=oi-abcdef123456&state=mystate", "mystate"
-    )
-    assert code_query == "oi-abcdef123456"
-
     # Trailing slash
     code_slash = validate_and_extract_code(
         "xfinitydigitalhome://auth/?code=oi-abcdef123456&state=mystate", "mystate"
@@ -100,6 +90,14 @@ def test_validate_and_extract_code_invalid_cases():
     # Non-string
     with pytest.raises(XfinityInvalidCallbackError):
         validate_and_extract_code(None, "state")  # type: ignore[arg-type]
+
+    # Raw code paste without complete callback URL is rejected
+    with pytest.raises(XfinityInvalidCallbackError):
+        validate_and_extract_code("oi-abcdef1234567890", "mystate")
+
+    # Query string only without scheme is rejected
+    with pytest.raises(XfinityInvalidCallbackError):
+        validate_and_extract_code("?code=oi-abcdef123456&state=mystate", "mystate")
 
     # Bad scheme
     with pytest.raises(XfinityInvalidCallbackError):

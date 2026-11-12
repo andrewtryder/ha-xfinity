@@ -17,7 +17,10 @@ from homeassistant.util import dt as dt_util
 
 from .api import XfinityAuthError, XfinityClient, XfinityClientRejected, XfinityError
 from .const import (
+    AUTH_METHOD_BROWSER,
+    AUTH_METHOD_BROWSERLESS,
     CONF_ADDRESS,
+    CONF_AUTH_METHOD,
     CONF_BROWSERLESS_API_KEY,
     CONF_PASSWORD,
     CONF_REFRESH_TOKEN,
@@ -173,6 +176,16 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
             return False
         self._last_login = now
         data = self.entry.data
+        auth_method = data.get(CONF_AUTH_METHOD)
+        if auth_method is None:
+            auth_method = (
+                AUTH_METHOD_BROWSERLESS
+                if data.get(CONF_BROWSERLESS_API_KEY)
+                else AUTH_METHOD_BROWSER
+            )
+        if auth_method != AUTH_METHOD_BROWSERLESS:
+            return False
+
         username = data.get(CONF_USERNAME)
         password = data.get(CONF_PASSWORD)
         api_key = data.get(CONF_BROWSERLESS_API_KEY)

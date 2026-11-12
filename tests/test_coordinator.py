@@ -16,6 +16,7 @@ from custom_components.xfinity.api import (
     XfinityError,
 )
 from custom_components.xfinity.const import (
+    AUTH_METHOD_BROWSER,
     CONF_ADDRESS,
     CONF_REFRESH_TOKEN,
     DOMAIN,
@@ -247,6 +248,16 @@ async def test_relogin_failure_modes(hass):
     entry_no_creds = _entry(hass)
     coordinator = XfinityCoordinator(hass, entry_no_creds)
     assert await coordinator._relogin() is False
+
+    entry_browser = _entry(
+        hass,
+        auth_method=AUTH_METHOD_BROWSER,
+        username="u",
+        password="p",
+        browserless_api_key="k",
+    )
+    coordinator_browser = XfinityCoordinator(hass, entry_browser)
+    assert await coordinator_browser._relogin() is False
 
     entry_with_creds = _entry(hass, username="u", password="p", browserless_api_key="k")
     coordinator2 = XfinityCoordinator(hass, entry_with_creds)

@@ -1,4 +1,4 @@
-"""Opt-in diagnostic script to test Xfinity authentication flows.
+"""Opt-in diagnostic script to test Xfinity browser authentication.
 
 SECURITY & PRIVACY RULES:
 - Never prints passwords, authorization codes, tokens, cookies, or secrets.
@@ -12,7 +12,6 @@ import argparse
 import asyncio
 from datetime import date
 import json
-import os
 from pathlib import Path
 import sys
 
@@ -29,73 +28,14 @@ from custom_components.xfinity.browser_auth import (  # noqa: E402
     BrowserAuthorization,
     async_complete_browser_auth,
 )
-from custom_components.xfinity.direct_auth import (  # noqa: E402
-    XfinityDirectLoginSession,
-)
-from custom_components.xfinity.login import (  # noqa: E402
-    XfinityBotChallengeError,
-    XfinityLoginError,
-    XfinityLoginRejected,
-    XfinityMfaRequired,
-)
 
-SCRATCH_DIR = Path(
-    "/Users/atr/.gemini/antigravity/brain/6f4a90bf-8a91-47c5-810b-38ef22e4be05/scratch"
-)
-SESSION_FILE = SCRATCH_DIR / "browser_session.json"
-
-
-def load_env() -> dict[str, str]:
-    """Load key-value pairs from .env if present."""
-    env_file = REPO_ROOT / ".env"
-    env_vars: dict[str, str] = {}
-    if env_file.is_file():
-        for line in env_file.read_text().splitlines():
-            line = line.strip()
-            if line and not line.startswith("#") and "=" in line:
-                k, v = line.split("=", 1)
-                env_vars[k.strip()] = v.strip().strip('"').strip("'")
-    return env_vars
-
-
-async def run_direct_http_test(username: str, password: str) -> None:
-    """Test the direct aiohttp login flow against live endpoints."""
-    print("\n--- Testing Direct HTTP Authentication ---")
-    print(f"Username provided: [REDACTED username with length {len(username)}]")
-    print(f"Password provided: [REDACTED password with length {len(password)}]")
-
-    jar = aiohttp.CookieJar()
-    async with aiohttp.ClientSession(cookie_jar=jar) as session:
-        direct = XfinityDirectLoginSession(session)
-        print("Starting direct HTTP session...")
-        try:
-            tokens = await direct.async_start(username, password)
-            has_refresh = bool(tokens.get("refresh_token"))
-            has_access = bool(tokens.get("access_token"))
-            print("Direct HTTP login completed successfully!")
-            print(f"  Got refresh_token: {has_refresh}")
-            print(f"  Got access_token: {has_access}")
-            await verify_account_data(session, tokens["refresh_token"])
-        except XfinityBotChallengeError as err:
-            print(
-                f"\n[BLOCKED] Direct HTTP login was blocked by bot protection:\n  {err}"
-            )
-            print(
-                "  Evidence: Akamai Bot Manager intercepts direct form POSTs to login.xfinity.com."
-            )
-            print("  Stage: Step 2/3 (POST credentials to login.xfinity.com).")
-            print("  Action: Halting direct HTTP flow immediately (not retrying).")
-        except XfinityLoginRejected as err:
-            print(f"\n[REJECTED] Direct HTTP login was rejected: {err}")
-        except XfinityMfaRequired as err:
-            print(f"\n[MFA] Direct HTTP login requires MFA: {err}")
-        except XfinityLoginError as err:
-            print(f"\n[ERROR] Direct HTTP login failed with error: {err}")
+CACHE_DIR = REPO_ROOT / ".cache"
+SESSION_FILE = CACHE_DIR / "browser_session.json"
 
 
 def save_browser_session(auth: BrowserAuthorization) -> None:
-    """Save active browser authorization session to scratch directory."""
-    SCRATCH_DIR.mkdir(parents=True, exist_ok=True)
+    """Save active browser authorization session to cache directory."""
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
     payload = {
         "url": auth.url,
         "verifier": auth.verifier,
@@ -108,7 +48,7 @@ def save_browser_session(auth: BrowserAuthorization) -> None:
 
 
 def load_browser_session() -> BrowserAuthorization | None:
-    """Load browser authorization session from scratch directory."""
+    """Load browser authorization session from cache directory."""
     if not SESSION_FILE.is_file():
         return None
     try:
@@ -164,8 +104,6 @@ async def complete_browser_handoff(callback_url: str) -> None:
 
             refresh_token = tokens.get("refresh_token")
             if isinstance(refresh_token, str):
-                tokens_file = SCRATCH_DIR / "latest_tokens.json"
-                tokens_file.write_text(json.dumps(tokens))
                 await verify_account_data(session, refresh_token)
         except Exception as err:
             print(f"\n[ERROR] Browser-handoff token exchange failed: {err}")
@@ -202,10 +140,7 @@ async def verify_account_data(
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Test Xfinity authentication flows.")
-    parser.add_argument(
-        "--direct", action="store_true", help="Run direct HTTP login test."
-    )
+    parser = argparse.ArgumentParser(description="Test Xfinity browser authentication.")
     parser.add_argument(
         "--start-browser",
         action="store_true",
@@ -218,10 +153,6 @@ async def main() -> None:
     )
     args = parser.parse_args()
 
-    env_vars = load_env()
-    username = os.environ.get("XFINITY_LOGIN") or env_vars.get("XFINITY_LOGIN")
-    password = os.environ.get("XFINITY_PASSWORD") or env_vars.get("XFINITY_PASSWORD")
-
     print("========================================")
     print("  Xfinity Authentication Diagnostic")
     print("========================================")
@@ -230,26 +161,6 @@ async def main() -> None:
         await complete_browser_handoff(args.complete_browser)
         return
 
-    if args.start_browser:
-        await start_browser_handoff()
-        return
-
-    if args.direct:
-        if username and password:
-            await run_direct_http_test(username, password)
-        else:
-            print(
-                "[ERROR] XFINITY_LOGIN and XFINITY_PASSWORD are required in .env or environment."
-            )
-        return
-
-    # Default mode: run direct test, then offer browser handoff
-    if username and password:
-        await run_direct_http_test(username, password)
-    else:
-        print("\nNo XFINITY_LOGIN/XFINITY_PASSWORD found in environment or .env.")
-
-    print("\n----------------------------------------")
     await start_browser_handoff()
 
 

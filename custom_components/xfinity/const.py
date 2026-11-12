@@ -11,6 +11,9 @@ CONF_USERNAME = "username"
 CONF_PASSWORD = "password"
 CONF_BROWSERLESS_API_KEY = "browserless_api_key"
 CONF_REFRESH_TOKEN = "refresh_token"
+CONF_AUTH_METHOD = "auth_method"
+AUTH_METHOD_BROWSER = "browser"
+AUTH_METHOD_BROWSERLESS = "browserless"
 RELOGIN_INTERVAL_SECONDS = 3600
 
 # Keys written by 0.1.0. Removed from the config entry on setup.

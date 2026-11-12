@@ -49,10 +49,6 @@ class BrowserlessError(XfinityLoginError):
     """Browserless rejected the key or could not run the browser."""
 
 
-class XfinityBotChallengeError(XfinityLoginError):
-    """Anti-bot challenge or edge protection blocked direct sign-in."""
-
-
 class XfinityInvalidCallbackError(XfinityLoginError):
     """The OAuth callback URL was invalid, corrupted, or mismatched."""
 
