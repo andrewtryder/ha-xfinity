@@ -34,7 +34,7 @@ mutation Login($url: String!, $user: String!, $pass: String!) {
 
 
 class XfinityLoginError(Exception):
-    """Browserless sign-in failed."""
+    """Sign-in failed."""
 
 
 class XfinityLoginRejected(XfinityLoginError):
@@ -47,6 +47,18 @@ class XfinityMfaRequired(XfinityLoginError):
 
 class BrowserlessError(XfinityLoginError):
     """Browserless rejected the key or could not run the browser."""
+
+
+class XfinityBotChallengeError(XfinityLoginError):
+    """Anti-bot challenge or edge protection blocked direct sign-in."""
+
+
+class XfinityInvalidCallbackError(XfinityLoginError):
+    """The OAuth callback URL was invalid, corrupted, or mismatched."""
+
+
+class XfinityBrowserSessionExpiredError(XfinityLoginError):
+    """The browser authorization session timed out or was already consumed."""
 
 
 def pkce_authorize_url() -> tuple[str, str, str, str]:

@@ -358,3 +358,180 @@ async def test_reconfigure_error_branches(hass, enable_custom_integrations):
         {CONF_ADDRESS: ADDRESS, CONF_BROWSERLESS_API_KEY: "short"},
     )
     assert result["errors"]["browserless_api_key"] == "invalid_browserless_key"
+
+
+async def test_user_flow_browser_handoff_success(hass, enable_custom_integrations):
+    """User chooses browser handoff by omitting browserless credentials."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    # Step 1: submit address without browserless credentials
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_ADDRESS: ADDRESS},
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "browser"
+    assert "authorization_url" in result["description_placeholders"]
+    auth_url = result["description_placeholders"]["authorization_url"]
+    assert "https://xerxes-sub.xerxessecure.com" in auth_url
+
+    tokens_payload = {
+        "refresh_token": "browser-refresh-token",
+        "access_token": "access",
+    }
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(return_value=tokens_payload),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "xfinitydigitalhome://auth?code=oi-test12345&state=valid"},
+        )
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_ADDRESS] == ADDRESS
+    assert result["data"][CONF_REFRESH_TOKEN] == "browser-refresh-token"
+    assert CONF_BROWSERLESS_API_KEY not in result["data"]
+
+
+async def test_user_flow_direct_http_blocked_falls_back_to_browser(
+    hass, enable_custom_integrations
+):
+    """Direct HTTP login blocked by Akamai Bot Manager falls back to browser step."""
+    from custom_components.xfinity.login import XfinityBotChallengeError
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    with patch(
+        "custom_components.xfinity.config_flow.XfinityDirectLoginSession.async_start",
+        AsyncMock(side_effect=XfinityBotChallengeError("Blocked by Akamai")),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_ADDRESS: ADDRESS,
+                CONF_USERNAME: USERNAME,
+                CONF_PASSWORD: PASSWORD,
+            },
+        )
+    assert result["type"] == "form"
+    assert result["step_id"] == "browser"
+
+
+async def test_user_flow_direct_http_success(hass, enable_custom_integrations):
+    """Direct HTTP login succeeds when not blocked by bot protection."""
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    with patch(
+        "custom_components.xfinity.config_flow.XfinityDirectLoginSession.async_start",
+        AsyncMock(return_value={"refresh_token": "direct-refresh-token"}),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {
+                CONF_ADDRESS: ADDRESS,
+                CONF_USERNAME: USERNAME,
+                CONF_PASSWORD: PASSWORD,
+            },
+        )
+    assert result["type"] == "create_entry"
+    assert result["data"][CONF_REFRESH_TOKEN] == "direct-refresh-token"
+    assert result["data"][CONF_USERNAME] == USERNAME
+
+
+async def test_browser_step_error_handling(hass, enable_custom_integrations):
+    """Test error handling in browser handoff step."""
+    from custom_components.xfinity.login import (
+        XfinityBrowserSessionExpiredError,
+        XfinityInvalidCallbackError,
+    )
+
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN, context={"source": "user"}
+    )
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_ADDRESS: ADDRESS},
+    )
+    assert result["step_id"] == "browser"
+
+    # Invalid callback error
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=XfinityInvalidCallbackError("Invalid")),
+    ):
+        result2 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "bad_callback"},
+        )
+    assert result2["errors"]["base"] == "invalid_callback"
+
+    # Expired session error
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=XfinityBrowserSessionExpiredError("Expired")),
+    ):
+        result3 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "xfinitydigitalhome://auth?code=oi-expired&state=s"},
+        )
+    assert result3["errors"]["base"] == "session_expired"
+
+    # Login rejected / invalid_auth
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=XfinityLoginRejected("Rejected")),
+    ):
+        result4 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "xfinitydigitalhome://auth?code=oi-rejected&state=s"},
+        )
+    assert result4["errors"]["base"] == "invalid_auth"
+
+    # Connection error
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=XfinityLoginError("Connection failed")),
+    ):
+        result5 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "xfinitydigitalhome://auth?code=oi-netfail&state=s"},
+        )
+    assert result5["errors"]["base"] == "cannot_connect"
+
+
+async def test_reauth_with_browser_handoff(hass, enable_custom_integrations):
+    """Reauth flow can complete via browser handoff when user has no browserless key."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_ADDRESS: ADDRESS,
+            CONF_USERNAME: USERNAME,
+            CONF_REFRESH_TOKEN: TOKEN,
+        },
+        version=2,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reauth_flow(hass)
+    # Submit empty/no credentials to initiate browser handoff
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {},
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "browser"
+
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(return_value={"refresh_token": "reauth-refresh-token"}),
+    ):
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": "xfinitydigitalhome://auth?code=oi-reauth&state=s"},
+        )
+    assert result["type"] == "abort"
+    assert result["reason"] == "reauth_successful"
+    assert entry.data[CONF_REFRESH_TOKEN] == "reauth-refresh-token"

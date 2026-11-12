@@ -40,6 +40,16 @@
           "address": "The street address where Xfinity service is installed. It is used for outage checks.",
           "browserless_api_key": "The replacement API key from your Browserless account."
         }
+      },
+      "browser": {
+        "title": "Sign in with your browser",
+        "description": "1. Open [Xfinity Sign In]({authorization_url}) in your web browser.\n2. Sign in with your Xfinity account credentials.\n3. After signing in, your browser will try to open a URL starting with `xfinitydigitalhome://auth`.\n4. Copy that URL from your browser address bar (or copy the code starting with `oi-`) and paste it below.\n\n*Tip: If your browser opens a blank or error page, the full URL is still in the address bar. If you use a mobile device, do not allow the Xfinity app to handle the link.*",
+        "data": {
+          "callback_url": "Callback URL or code"
+        },
+        "data_description": {
+          "callback_url": "The full callback URL starting with xfinitydigitalhome://auth, or just the authorization code starting with oi-."
+        }
       }
     },
     "error": {
@@ -49,6 +59,9 @@
       "invalid_username": "Enter the Xfinity username.",
       "invalid_password": "Enter the Xfinity password.",
       "invalid_browserless_key": "Enter the Browserless API key.",
+      "invalid_callback": "The callback URL is invalid or did not contain an authorization code.",
+      "session_expired": "The sign-in session expired. Open the link again to complete sign-in.",
+      "bot_challenge_error": "Direct sign-in was blocked by Xfinity anti-bot protection. Complete sign-in in your browser.",
       "mfa_required": "Xfinity asked for a verification code. Approve it in the Xfinity app, then try again.",
       "browserless_error": "Browserless could not run the sign-in. Check the API key and remaining units.",
       "cannot_connect": "Could not reach Xfinity or Browserless."
