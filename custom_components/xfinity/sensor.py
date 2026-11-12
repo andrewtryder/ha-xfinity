@@ -54,7 +54,7 @@ class XfinitySensorDescription(SensorEntityDescription):
     """Sensor description plus the coordinator section it reads."""
 
     section: str
-    value_fn: Callable[[dict[str, Any]], Any]
+    value_fn: Callable[[Any], Any]
 
 
 SENSORS: tuple[XfinitySensorDescription, ...] = (
@@ -148,6 +148,24 @@ SENSORS: tuple[XfinitySensorDescription, ...] = (
         suggested_display_precision=2,
         icon="mdi:calendar-alert",
     ),
+    XfinitySensorDescription(
+        key="last_successful_outage_check",
+        translation_key="last_successful_outage_check",
+        section="coordinator",
+        value_fn=lambda coord: coord.last_successful_outage_check,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:clock-check-outline",
+    ),
+    XfinitySensorDescription(
+        key="last_successful_account_update",
+        translation_key="last_successful_account_update",
+        section="coordinator",
+        value_fn=lambda coord: coord.last_successful_account_update,
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:calendar-check-outline",
+    ),
 )
 
 
@@ -179,6 +197,8 @@ class XfinitySensor(XfinityEntity, SensorEntity):
 
     @property
     def native_value(self):
+        if self.entity_description.section == "coordinator":
+            return self.entity_description.value_fn(self.coordinator)
         return self.entity_description.value_fn(self.section_data())
 
     @property

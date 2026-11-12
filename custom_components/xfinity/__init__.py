@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -12,6 +14,8 @@ from .coordinator import XfinityCoordinator
 type XfinityConfigEntry = ConfigEntry[XfinityCoordinator]
 
 PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_migrate_entry(hass: HomeAssistant, entry: XfinityConfigEntry) -> bool:
@@ -33,9 +37,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: XfinityConfigEntry) -> b
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    _LOGGER.info("Xfinity integration started successfully")
     return True
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: XfinityConfigEntry) -> bool:
     """Unload a config entry."""
-    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        _LOGGER.info("Xfinity integration unloaded")
+    return unloaded

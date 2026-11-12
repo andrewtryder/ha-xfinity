@@ -119,7 +119,9 @@
       "bill_status": {"name": "Bill status"},
       "amount_due": {"name": "Amount due"},
       "bill_due_date": {"name": "Bill due date"},
-      "past_due": {"name": "Past due amount"}
+      "past_due": {"name": "Past due amount"},
+      "last_successful_outage_check": {"name": "Last successful outage check"},
+      "last_successful_account_update": {"name": "Last successful account update"}
     },
     "binary_sensor": {
       "active_outage": {"name": "Active outage"},

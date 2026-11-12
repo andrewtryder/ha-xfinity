@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -446,3 +447,89 @@ async def test_outage_sensor_extra_state_attributes(hass, enable_custom_integrat
     assert state is not None
     assert state.attributes["classification"] == "planned"
     assert state.attributes["customer_message"] == "Maintenance in progress"
+
+
+async def test_diagnostic_timestamp_sensors(hass, enable_custom_integrations):
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    outage_sensor = hass.states.get("sensor.xfinity_last_successful_outage_check")
+    assert outage_sensor is not None
+    assert outage_sensor.state != "unknown"
+    assert outage_sensor.attributes.get("device_class") == "timestamp"
+
+    account_sensor = hass.states.get("sensor.xfinity_last_successful_account_update")
+    assert account_sensor is not None
+    assert account_sensor.state != "unknown"
+    assert account_sensor.attributes.get("device_class") == "timestamp"
+
+
+async def test_diagnostic_timestamps_on_failure_and_cache(
+    hass, enable_custom_integrations
+):
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator: XfinityCoordinator = entry.runtime_data
+    initial_outage_time = coordinator.last_successful_outage_check
+    initial_account_time = coordinator.last_successful_account_update
+    assert initial_outage_time is not None
+    assert initial_account_time is not None
+
+    # On a subsequent poll where outage fails and account is cached:
+    class FailingOutageClient(_Client):
+        async def async_fetch_outage(self):
+            raise XfinityError("Outage endpoint down")
+
+    coordinator.client = FailingOutageClient(None, ADDRESS, TOKEN)
+    await coordinator.async_refresh()
+
+    # Outage failed: last successful timestamp must be retained, not cleared
+    assert coordinator.last_successful_outage_check == initial_outage_time
+    # Account was cached: timestamp must remain unchanged
+    assert coordinator.last_successful_account_update == initial_account_time
+
+
+async def test_structured_logging(hass, enable_custom_integrations, caplog):
+    caplog.set_level(logging.DEBUG)
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Verify INFO and DEBUG messages during initial poll and setup
+    messages = [record.message for record in caplog.records]
+    assert any("Xfinity integration started successfully" in m for m in messages)
+    assert any("Starting Xfinity outage check" in m for m in messages)
+    assert any("Xfinity outage check completed in" in m for m in messages)
+    assert any("Starting Xfinity account check" in m for m in messages)
+    assert any("Xfinity usage check completed in" in m for m in messages)
+    assert any("Xfinity billing check completed in" in m for m in messages)
+    assert any("Xfinity account check completed in" in m for m in messages)
+
+    # Verify cached poll logs debug message about skipping
+    coordinator: XfinityCoordinator = entry.runtime_data
+    await coordinator.async_refresh()
+    messages_after = [record.message for record in caplog.records]
+    assert any(
+        "Skipping account check: cached usage and billing are fresh until" in m
+        for m in messages_after
+    )
+
+    # Verify token rotation log
+    coordinator._persist_refresh_token("new-token-123")
+    assert any(
+        "Xfinity OAuth refresh token rotated and saved" in record.message
+        for record in caplog.records
+    )
+
+    # Verify unload log
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert any(
+        "Xfinity integration unloaded" in record.message for record in caplog.records
+    )
