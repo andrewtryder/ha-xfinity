@@ -2,7 +2,7 @@
 
 SECURITY & PRIVACY RULES:
 - Never prints passwords, authorization codes, tokens, cookies, or secrets.
-- Never hardcodes credentials.
+- Never hardcodes credentials or persists tokens to disk.
 - Restricts session files to owner-only permissions (0600).
 - Accepts callback URLs interactively to prevent shell history leakage.
 """
@@ -35,11 +35,20 @@ CACHE_DIR = REPO_ROOT / ".cache"
 SESSION_FILE = CACHE_DIR / "browser_session.json"
 
 
-def save_browser_session(
-    auth: BrowserAuthorization,
-    *,
-    refresh_token: str | None = None,
-) -> None:
+def load_env() -> dict[str, str]:
+    """Load key-value pairs from .env if present."""
+    env_file = REPO_ROOT / ".env"
+    env_vars: dict[str, str] = {}
+    if env_file.is_file():
+        for line in env_file.read_text().splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                env_vars[k.strip()] = v.strip().strip('"').strip("'")
+    return env_vars
+
+
+def save_browser_session(auth: BrowserAuthorization) -> None:
     """Save active browser authorization session to cache directory with 0600 permissions."""
     CACHE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
     try:
@@ -47,6 +56,7 @@ def save_browser_session(
     except OSError:
         pass
 
+    # Only store PKCE session parameters; tokens are NEVER persisted
     payload = {
         "url": auth.url,
         "verifier": auth.verifier,
@@ -55,8 +65,6 @@ def save_browser_session(
         "expires_at": auth.expires_at,
         "consumed": auth.consumed,
     }
-    if refresh_token:
-        payload["refresh_token"] = refresh_token
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
     fd = os.open(SESSION_FILE, flags, 0o600)
@@ -64,15 +72,13 @@ def save_browser_session(
         f.write(json.dumps(payload))
 
 
-def load_browser_session() -> (
-    tuple[BrowserAuthorization, str | None] | tuple[None, None]
-):
+def load_browser_session() -> BrowserAuthorization | None:
     """Load browser authorization session from cache directory."""
     if not SESSION_FILE.is_file():
-        return None, None
+        return None
     try:
         data = json.loads(SESSION_FILE.read_text())
-        auth = BrowserAuthorization(
+        return BrowserAuthorization(
             url=data["url"],
             verifier=data["verifier"],
             activity=data["activity"],
@@ -80,9 +86,8 @@ def load_browser_session() -> (
             expires_at=data["expires_at"],
             consumed=data.get("consumed", False),
         )
-        return auth, data.get("refresh_token")
     except Exception:
-        return None, None
+        return None
 
 
 async def start_browser_handoff() -> BrowserAuthorization:
@@ -112,24 +117,23 @@ async def start_browser_handoff() -> BrowserAuthorization:
     return auth
 
 
-async def complete_browser_handoff(callback_url: str | None = None) -> None:
+async def complete_browser_handoff() -> None:
     """Complete the browser handoff session and exchange code for tokens."""
-    auth, _ = load_browser_session()
+    auth = load_browser_session()
     if auth is None:
         print(
             "[ERROR] No active browser authorization session found. Run --start-browser first."
         )
         sys.exit(1)
 
-    if not callback_url:
-        print("\n--- Enter Authorization Callback ---")
-        try:
-            callback_url = input(
-                "Paste complete callback URL (xfinitydigitalhome://auth?code=...&state=...): "
-            ).strip()
-        except KeyboardInterrupt, EOFError:
-            print("\nAborted.")
-            sys.exit(1)
+    print("\n--- Enter Authorization Callback ---")
+    try:
+        callback_url = input(
+            "Paste complete callback URL (xfinitydigitalhome://auth?code=...&state=...): "
+        ).strip()
+    except KeyboardInterrupt, EOFError:
+        print("\nAborted.")
+        sys.exit(1)
 
     if not callback_url:
         print("[ERROR] Callback URL is required.")
@@ -139,14 +143,22 @@ async def complete_browser_handoff(callback_url: str | None = None) -> None:
     async with aiohttp.ClientSession() as session:
         try:
             tokens = await async_complete_browser_auth(session, auth, callback_url)
+            # Record that session was consumed (tokens remain in memory only)
+            save_browser_session(auth)
+
             refresh_token = tokens.get("refresh_token")
             if not isinstance(refresh_token, str) or not refresh_token:
                 print("[ERROR] Token exchange rejected or missing refresh token.")
                 sys.exit(1)
 
-            save_browser_session(auth, refresh_token=refresh_token)
             print("Token exchange succeeded! Verifying live account access...")
-            await verify_account_data(session, auth, refresh_token)
+            env_vars = load_env()
+            address = (
+                os.environ.get("XFINITY_ADDRESS")
+                or env_vars.get("XFINITY_ADDRESS")
+                or "Primary Account"
+            )
+            await verify_account_data(session, refresh_token, address)
         except Exception as err:
             print(f"\n[ERROR] Authentication failed: {err}")
             sys.exit(1)
@@ -154,16 +166,17 @@ async def complete_browser_handoff(callback_url: str | None = None) -> None:
 
 async def verify_account_data(
     session: aiohttp.ClientSession,
-    auth: BrowserAuthorization,
     refresh_token: str,
+    address: str,
 ) -> None:
     """Verify that the refresh token can fetch live account data with XfinityClient."""
+    token_state = {"current_refresh": refresh_token}
 
     def on_rotated(new_refresh: str) -> None:
-        save_browser_session(auth, refresh_token=new_refresh)
+        token_state["current_refresh"] = new_refresh
 
     client = XfinityClient(
-        session, "123 Main St", refresh_token, on_tokens_rotated=on_rotated
+        session, address, refresh_token, on_tokens_rotated=on_rotated
     )
     try:
         await client.async_ensure_token()
@@ -196,18 +209,10 @@ async def main() -> None:
         action="store_true",
         help="Complete browser handoff by interactively pasting callback URL.",
     )
-    parser.add_argument(
-        "--complete-browser",
-        nargs="?",
-        const="",
-        type=str,
-        help="Complete browser handoff (prompts interactively if URL not passed).",
-    )
     args = parser.parse_args()
 
-    if args.complete or args.complete_browser is not None:
-        url = args.complete_browser if args.complete_browser else None
-        await complete_browser_handoff(url)
+    if args.complete:
+        await complete_browser_handoff()
         return
 
     await start_browser_handoff()

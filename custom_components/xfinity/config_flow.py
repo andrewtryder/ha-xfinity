@@ -32,6 +32,7 @@ from .login import (
     XfinityLoginError,
     XfinityLoginRejected,
     XfinityMfaRequired,
+    XfinityTokenExchangeError,
     async_browserless_login,
 )
 
@@ -205,7 +206,12 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
             except XfinityLoginRejected:
                 self._browser_auth = BrowserAuthorization.create()
                 errors["base"] = "invalid_auth"
-            except XfinityLoginError, TimeoutError:
+            except (
+                XfinityTokenExchangeError,
+                BrowserlessError,
+                XfinityLoginError,
+                TimeoutError,
+            ):
                 self._browser_auth = BrowserAuthorization.create()
                 errors["base"] = "cannot_connect"
 

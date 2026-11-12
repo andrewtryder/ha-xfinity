@@ -36,6 +36,7 @@ from custom_components.xfinity.login import (
     XfinityLoginError,
     XfinityLoginRejected,
     XfinityMfaRequired,
+    XfinityTokenExchangeError,
 )
 
 ADDRESS = "21 Main Street"
@@ -308,6 +309,28 @@ async def test_browser_callback_error_handling(hass, enable_custom_integrations)
             {"callback_url": CALLBACK_URL},
         )
     assert result5["errors"]["base"] == "cannot_connect"
+
+    # Token exchange transport error creates fresh authorization session
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=XfinityTokenExchangeError("HTTP 500")),
+    ):
+        result6 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": CALLBACK_URL},
+        )
+    assert result6["errors"]["base"] == "cannot_connect"
+
+    # Browserless error in token exchange creates fresh authorization session
+    with patch(
+        "custom_components.xfinity.config_flow.async_complete_browser_auth",
+        AsyncMock(side_effect=BrowserlessError("Network error")),
+    ):
+        result7 = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            {"callback_url": CALLBACK_URL},
+        )
+    assert result7["errors"]["base"] == "cannot_connect"
 
 
 async def test_reauth_with_browser_handoff(hass, enable_custom_integrations):

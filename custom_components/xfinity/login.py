@@ -49,6 +49,10 @@ class BrowserlessError(XfinityLoginError):
     """Browserless rejected the key or could not run the browser."""
 
 
+class XfinityTokenExchangeError(BrowserlessError):
+    """The OAuth token exchange endpoint rejected or failed the request."""
+
+
 class XfinityInvalidCallbackError(XfinityLoginError):
     """The OAuth callback URL was invalid, corrupted, or mismatched."""
 
@@ -187,14 +191,14 @@ async def _exchange(session, code: str, verifier: str, activity: str) -> dict:
             if response.status in (400, 401):
                 raise XfinityLoginRejected("token exchange rejected")
             if response.status < 200 or response.status >= 300:
-                raise BrowserlessError(
+                raise XfinityTokenExchangeError(
                     f"token endpoint returned HTTP {response.status}"
                 )
             payload = await response.json(content_type=None)
     except aiohttp.ClientError as err:
-        raise BrowserlessError("token exchange failed") from err
+        raise XfinityTokenExchangeError("token exchange failed") from err
     except TimeoutError as err:
-        raise BrowserlessError("token exchange failed") from err
+        raise XfinityTokenExchangeError("token exchange failed") from err
     if (
         not isinstance(payload, dict)
         or not payload.get("refresh_token")
