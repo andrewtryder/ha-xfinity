@@ -43,6 +43,10 @@ For manual installation, copy `custom_components/xfinity` from a release into yo
 1. Go to **Settings → Devices & services → Add integration** and select **Xfinity**.
 2. Choose your preferred sign-in method:
    - **Sign in using your browser (Recommended):** Enter your service address, click the sign-in link, authenticate on Xfinity's website (including any MFA verification prompts), copy the resulting authorization callback URL, and paste it into Home Assistant.
+     > [!TIP]
+     > On desktop Google Chrome, open Developer Tools (`F12`), check **Preserve log** under the **Network** tab before signing in. When sign-in completes, select the cancelled `auth?activity_id=...` request and copy the full URL from **Headers → General → Request URL**:
+     >
+     > <img src="docs/chrome_devtools_callback.png" alt="Locating callback URL in Chrome DevTools Headers" width="650">
    - **Automatic login using Browserless:** Enter your service address, Xfinity username, Xfinity password, and Browserless API key.
 3. Submit the form to complete configuration.
 
