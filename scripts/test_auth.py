@@ -68,6 +68,10 @@ def save_browser_session(auth: BrowserAuthorization) -> None:
 
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
     fd = os.open(SESSION_FILE, flags, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+    except OSError:
+        pass
     with open(fd, "w") as f:
         f.write(json.dumps(payload))
 
@@ -156,7 +160,7 @@ async def complete_browser_handoff() -> None:
             address = (
                 os.environ.get("XFINITY_ADDRESS")
                 or env_vars.get("XFINITY_ADDRESS")
-                or "Primary Account"
+                or ""
             )
             await verify_account_data(session, refresh_token, address)
         except Exception as err:
@@ -176,22 +180,34 @@ async def verify_account_data(
         token_state["current_refresh"] = new_refresh
 
     client = XfinityClient(
-        session, address, refresh_token, on_tokens_rotated=on_rotated
+        session,
+        address or "Primary Account",
+        refresh_token,
+        on_tokens_rotated=on_rotated,
     )
     try:
         await client.async_ensure_token()
 
         summary = await client.async_fetch_usage(date.today())
-        outage = await client.async_fetch_outage()
-
-        print("\n[SUCCESS] Full end-to-end verification confirmed without Browserless!")
+        print("\n[SUCCESS] Authentication and GraphQL usage query verified!")
         print(f"  Usage status:   {summary.get('status')}")
         if "used_gb" in summary:
             print(f"  Used GB:        {summary.get('used_gb')} GB")
         if "allowance_gb" in summary:
             print(f"  Allowance GB:   {summary.get('allowance_gb')} GB")
-        print(f"  Outage status:  {outage.get('status')}")
-        print("\nAccount access is fully verified and ready for Home Assistant.")
+
+        if address and address != "Primary Account":
+            try:
+                outage = await client.async_fetch_outage()
+                print(f"  Outage status:  {outage.get('status')}")
+            except Exception as err:
+                print(f"  [WARN] Outage query failed for address '{address}': {err}")
+        else:
+            print(
+                "  Outage check:   Skipped (set XFINITY_ADDRESS to verify outage endpoint)"
+            )
+
+        print("\nAccount access is verified and ready for Home Assistant.")
     except Exception as err:
         print(f"\n[ERROR] Account data verification failed: {err}")
         sys.exit(1)

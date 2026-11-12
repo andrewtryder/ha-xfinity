@@ -49,7 +49,7 @@ class BrowserlessError(XfinityLoginError):
     """Browserless rejected the key or could not run the browser."""
 
 
-class XfinityTokenExchangeError(BrowserlessError):
+class XfinityTokenExchangeError(XfinityLoginError):
     """The OAuth token exchange endpoint rejected or failed the request."""
 
 
