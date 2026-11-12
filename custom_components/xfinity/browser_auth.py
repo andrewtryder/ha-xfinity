@@ -17,7 +17,7 @@ from .login import (
     pkce_authorize_url,
 )
 
-DEFAULT_BROWSER_AUTH_TIMEOUT_SECONDS = 600.0
+DEFAULT_BROWSER_AUTH_TIMEOUT_SECONDS = 900.0
 
 
 @dataclass(slots=True)
@@ -69,12 +69,12 @@ def validate_and_extract_code(callback_input: str, expected_state: str) -> str:
             f"Callback URL must begin with {expected.scheme}://"
         )
 
-    is_valid_location = parsed.netloc == expected.netloc or parsed.path in (
-        f"//{expected.netloc}",
-        f"//{expected.netloc}/",
-        f"/{expected.netloc}",
-    )
-    if not is_valid_location or parsed.fragment:
+    if (
+        parsed.netloc != expected.netloc
+        or parsed.path not in ("", "/")
+        or parsed.fragment
+        or parsed.params
+    ):
         raise XfinityInvalidCallbackError("Callback URL destination is invalid")
 
     params = parse_qs(parsed.query)

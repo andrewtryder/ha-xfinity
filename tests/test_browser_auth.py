@@ -109,6 +109,12 @@ def test_validate_and_extract_code_invalid_cases():
             "xfinitydigitalhome://notauth?code=oi-123&state=s", "s"
         )
 
+    # Unexpected path
+    with pytest.raises(XfinityInvalidCallbackError, match="destination is invalid"):
+        validate_and_extract_code(
+            "xfinitydigitalhome://auth/unexpected-path?code=oi-123&state=s", "s"
+        )
+
     # Has fragment
     with pytest.raises(XfinityInvalidCallbackError):
         validate_and_extract_code(

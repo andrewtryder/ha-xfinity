@@ -3,7 +3,8 @@
 SECURITY & PRIVACY RULES:
 - Never prints passwords, authorization codes, tokens, cookies, or secrets.
 - Never hardcodes credentials.
-- Credentials read from environment or .env if present.
+- Restricts session files to owner-only permissions (0600).
+- Accepts callback URLs interactively to prevent shell history leakage.
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import argparse
 import asyncio
 from datetime import date
 import json
+import os
 from pathlib import Path
 import sys
 
@@ -33,9 +35,18 @@ CACHE_DIR = REPO_ROOT / ".cache"
 SESSION_FILE = CACHE_DIR / "browser_session.json"
 
 
-def save_browser_session(auth: BrowserAuthorization) -> None:
-    """Save active browser authorization session to cache directory."""
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+def save_browser_session(
+    auth: BrowserAuthorization,
+    *,
+    refresh_token: str | None = None,
+) -> None:
+    """Save active browser authorization session to cache directory with 0600 permissions."""
+    CACHE_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        os.chmod(CACHE_DIR, 0o700)
+    except OSError:
+        pass
+
     payload = {
         "url": auth.url,
         "verifier": auth.verifier,
@@ -44,16 +55,24 @@ def save_browser_session(auth: BrowserAuthorization) -> None:
         "expires_at": auth.expires_at,
         "consumed": auth.consumed,
     }
-    SESSION_FILE.write_text(json.dumps(payload))
+    if refresh_token:
+        payload["refresh_token"] = refresh_token
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    fd = os.open(SESSION_FILE, flags, 0o600)
+    with open(fd, "w") as f:
+        f.write(json.dumps(payload))
 
 
-def load_browser_session() -> BrowserAuthorization | None:
+def load_browser_session() -> (
+    tuple[BrowserAuthorization, str | None] | tuple[None, None]
+):
     """Load browser authorization session from cache directory."""
     if not SESSION_FILE.is_file():
-        return None
+        return None, None
     try:
         data = json.loads(SESSION_FILE.read_text())
-        return BrowserAuthorization(
+        auth = BrowserAuthorization(
             url=data["url"],
             verifier=data["verifier"],
             activity=data["activity"],
@@ -61,82 +80,108 @@ def load_browser_session() -> BrowserAuthorization | None:
             expires_at=data["expires_at"],
             consumed=data.get("consumed", False),
         )
+        return auth, data.get("refresh_token")
     except Exception:
-        return None
+        return None, None
 
 
 async def start_browser_handoff() -> BrowserAuthorization:
     """Initialize a browser authorization session and print instructions."""
     auth = BrowserAuthorization.create(timeout_seconds=900)
     save_browser_session(auth)
-    print("\n--- Browser Handoff OAuth Flow ---")
-    print("1. Open the following authorization URL in your web browser:")
+    print("\n========================================")
+    print("  Xfinity Browser Authentication Setup")
+    print("========================================")
+    print("\nStep 1: Open Google Chrome with Developer Tools (F12 or Cmd+Option+I).")
+    print("        In DevTools, go to the Network tab and check 'Preserve log'.")
+    print(
+        "\nStep 2: Navigate to the following authorization link (expires in 15 minutes):"
+    )
     print(f"\n   {auth.url}\n")
-    print("2. Sign in with your Xfinity account credentials.")
-    print("3. When complete, your browser will attempt to navigate to:")
-    print("   xfinitydigitalhome://auth?code=oi-...&state=...")
-    print("4. Copy the entire URL from your browser address bar and run:")
-    print('   uv run python scripts/test_auth.py --complete-browser "<CALLBACK_URL>"\n')
+    print(
+        "Step 3: Sign in with your Xfinity credentials and complete any verification."
+    )
+    print("Step 4: When sign-in completes, Chrome will try to open:")
+    print("        xfinitydigitalhome://auth?code=oi-...&state=...")
+    print(
+        "        Copy the entire URL from the Chrome address bar, or from the DevTools"
+    )
+    print("        Console / Network redirect Location header.")
+    print("\nStep 5: Run the completion command and paste the URL when prompted:")
+    print("        uv run python scripts/test_auth.py --complete\n")
     return auth
 
 
-async def complete_browser_handoff(callback_url: str) -> None:
+async def complete_browser_handoff(callback_url: str | None = None) -> None:
     """Complete the browser handoff session and exchange code for tokens."""
-    auth = load_browser_session()
+    auth, _ = load_browser_session()
     if auth is None:
         print(
             "[ERROR] No active browser authorization session found. Run --start-browser first."
         )
-        return
+        sys.exit(1)
 
-    print("\n--- Exchanging Browser Authorization Callback ---")
-    print("Validating callback URL and extracting authorization code...")
+    if not callback_url:
+        print("\n--- Enter Authorization Callback ---")
+        try:
+            callback_url = input(
+                "Paste complete callback URL (xfinitydigitalhome://auth?code=...&state=...): "
+            ).strip()
+        except KeyboardInterrupt, EOFError:
+            print("\nAborted.")
+            sys.exit(1)
+
+    if not callback_url:
+        print("[ERROR] Callback URL is required.")
+        sys.exit(1)
+
+    print("\nValidating callback URL and exchanging code with Xfinity...")
     async with aiohttp.ClientSession() as session:
         try:
             tokens = await async_complete_browser_auth(session, auth, callback_url)
-            save_browser_session(auth)  # Record consumed state
-            has_refresh = bool(tokens.get("refresh_token"))
-            has_access = bool(tokens.get("access_token"))
-
-            print("\n[SUCCESS] Token exchange completed without Browserless!")
-            print(f"  Valid refresh token received: {has_refresh}")
-            print(f"  Valid access token received:  {has_access}")
-
             refresh_token = tokens.get("refresh_token")
-            if isinstance(refresh_token, str):
-                await verify_account_data(session, refresh_token)
+            if not isinstance(refresh_token, str) or not refresh_token:
+                print("[ERROR] Token exchange rejected or missing refresh token.")
+                sys.exit(1)
+
+            save_browser_session(auth, refresh_token=refresh_token)
+            print("Token exchange succeeded! Verifying live account access...")
+            await verify_account_data(session, auth, refresh_token)
         except Exception as err:
-            print(f"\n[ERROR] Browser-handoff token exchange failed: {err}")
+            print(f"\n[ERROR] Authentication failed: {err}")
+            sys.exit(1)
 
 
 async def verify_account_data(
-    session: aiohttp.ClientSession, refresh_token: str
+    session: aiohttp.ClientSession,
+    auth: BrowserAuthorization,
+    refresh_token: str,
 ) -> None:
     """Verify that the refresh token can fetch live account data with XfinityClient."""
-    print("\n--- Verifying Live Account Access via XfinityClient ---")
-    client = XfinityClient(session, "123 Main St", refresh_token)
+
+    def on_rotated(new_refresh: str) -> None:
+        save_browser_session(auth, refresh_token=new_refresh)
+
+    client = XfinityClient(
+        session, "123 Main St", refresh_token, on_tokens_rotated=on_rotated
+    )
     try:
-        print("1. Refreshing access token via AUTH_TOKEN_URL...")
-        await client.async_ensure_token(force=True)
-        print("   Access token successfully refreshed!")
+        await client.async_ensure_token()
 
-        print("2. Querying GraphQL API for Internet data usage...")
         summary = await client.async_fetch_usage(date.today())
-        print("   GraphQL usage query succeeded!")
-        print(f"   Usage status: {summary.get('status')}")
-        if "used_gb" in summary:
-            print(f"   Used GB:      {summary.get('used_gb')}")
-        if "allowance_gb" in summary:
-            print(f"   Allowance GB: {summary.get('allowance_gb')}")
-        if "policy" in summary:
-            print(f"   Data Policy:  {summary.get('policy')}")
+        outage = await client.async_fetch_outage()
 
-        print("\n[VERIFIED] Full end-to-end authentication confirmed!")
-        print(
-            "The integration can fetch account data using tokens obtained without Browserless."
-        )
+        print("\n[SUCCESS] Full end-to-end verification confirmed without Browserless!")
+        print(f"  Usage status:   {summary.get('status')}")
+        if "used_gb" in summary:
+            print(f"  Used GB:        {summary.get('used_gb')} GB")
+        if "allowance_gb" in summary:
+            print(f"  Allowance GB:   {summary.get('allowance_gb')} GB")
+        print(f"  Outage status:  {outage.get('status')}")
+        print("\nAccount access is fully verified and ready for Home Assistant.")
     except Exception as err:
-        print(f"   [ERROR] Account data verification failed: {err}")
+        print(f"\n[ERROR] Account data verification failed: {err}")
+        sys.exit(1)
 
 
 async def main() -> None:
@@ -147,18 +192,22 @@ async def main() -> None:
         help="Generate authorization URL for browser handoff.",
     )
     parser.add_argument(
+        "--complete",
+        action="store_true",
+        help="Complete browser handoff by interactively pasting callback URL.",
+    )
+    parser.add_argument(
         "--complete-browser",
+        nargs="?",
+        const="",
         type=str,
-        help="Complete browser handoff with callback URL.",
+        help="Complete browser handoff (prompts interactively if URL not passed).",
     )
     args = parser.parse_args()
 
-    print("========================================")
-    print("  Xfinity Authentication Diagnostic")
-    print("========================================")
-
-    if args.complete_browser:
-        await complete_browser_handoff(args.complete_browser)
+    if args.complete or args.complete_browser is not None:
+        url = args.complete_browser if args.complete_browser else None
+        await complete_browser_handoff(url)
         return
 
     await start_browser_handoff()

@@ -19,9 +19,19 @@
           "address": "The street address where Xfinity service is installed. It is used for outage checks."
         }
       },
+      "address": {
+        "title": "Service address",
+        "description": "Enter the street address where Xfinity service is installed. It is used to check for service outages in your area.",
+        "data": {
+          "address": "Service address"
+        },
+        "data_description": {
+          "address": "The street address where Xfinity service is installed. It is used for outage checks."
+        }
+      },
       "browser_callback": {
         "title": "Sign in to Xfinity using your browser",
-        "description": "This method connects your Xfinity account without Browserless. Your username and password are entered directly on Xfinity's website and are not stored by this integration.\n\n**Step 1 — Open the Xfinity sign-in page**\n\nClick [Open Xfinity Sign In]({authorization_url}) to begin authentication in your web browser.\n\n**Step 2 — Complete authentication**\n\nEnter your Xfinity credentials and complete any verification steps requested by Xfinity.\n\n**Step 3 — Copy the authorization callback**\n\nWhen authentication succeeds, your browser will attempt to open an address beginning with:\n\n`xfinitydigitalhome://auth?code=...&state=...`\n\nYour browser may display an error because this address normally opens the Xfinity mobile application. This is expected.\n\nCopy the complete callback URL if your browser displays it.\n\nIf the URL is not visible, try using a desktop browser's Developer Tools (F12) and check the Console for a message about an unrecognized `xfinitydigitalhome://` protocol.\n\n**Step 4 — Finish connecting**\n\nReturn to Home Assistant and paste the complete callback URL into the Authorization callback URL field.\n\nSubmit the form to complete setup.\n\n*Important: The authorization code expires and can only be used once. If setup fails or times out, restart browser authentication to obtain a new link. Do not share the callback URL or authorization code with anyone.*",
+        "description": "This method connects your Xfinity account without Browserless. Your username and password are entered directly on Xfinity's website and are not stored by this integration.\n\n**Step 1 — Open the Xfinity sign-in page**\n\nClick [Open Xfinity Sign In]({authorization_url}) to begin authentication in your web browser.\n\n**Step 2 — Complete authentication**\n\nEnter your Xfinity credentials and complete any verification steps requested by Xfinity.\n\n**Step 3 — Copy the authorization callback**\n\nWhen authentication succeeds, your browser will attempt to open an address beginning with:\n\n`xfinitydigitalhome://auth?code=...&state=...`\n\nYour browser may display an error because this address normally opens the Xfinity mobile application. This is expected.\n\nCopy the complete callback URL if your browser displays it.\n\n*Recommended:* If the URL is not visible in the address bar, open desktop Google Chrome Developer Tools (F12) before signing in, check \"Preserve log\" on the Network tab, and copy the `xfinitydigitalhome://auth` URL from the Console or the last redirect Location header.\n\n**Step 4 — Finish connecting**\n\nReturn to Home Assistant and paste the complete callback URL into the Authorization callback URL field.\n\nSubmit the form to complete setup.\n\n*Important: The authorization code expires after 15 minutes and can only be used once. If setup fails or times out, restart browser authentication to obtain a new link. Do not share the callback URL or authorization code with anyone.*",
         "data": {
           "callback_url": "Authorization callback URL"
         },
@@ -55,10 +65,11 @@
       },
       "reconfigure": {
         "title": "Reconfigure Xfinity",
-        "description": "Choose an authentication method to update your settings or switch sign-in methods.",
+        "description": "Choose what you want to update.",
         "menu_options": {
-          "browser": "Sign in using your browser (Recommended)",
-          "browserless": "Automatic login using Browserless"
+          "address": "Update service address",
+          "browser": "Switch to browser sign-in (or re-authenticate)",
+          "browserless": "Switch to Browserless (or update credentials)"
         }
       }
     },

@@ -17,6 +17,7 @@ htmlcov/
 .DS_Store
 
 # Local Home Assistant runtime state
+.cache/
 .storage/
 *config_entries*
 home-assistant.log*

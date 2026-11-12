@@ -265,7 +265,7 @@ async def test_browser_callback_error_handling(hass, enable_custom_integrations)
     )
     assert result["step_id"] == "browser_callback"
 
-    # Invalid callback error
+    # Invalid callback error keeps existing session active
     with patch(
         "custom_components.xfinity.config_flow.async_complete_browser_auth",
         AsyncMock(side_effect=XfinityInvalidCallbackError("Invalid")),
@@ -276,7 +276,7 @@ async def test_browser_callback_error_handling(hass, enable_custom_integrations)
         )
     assert result2["errors"]["base"] == "invalid_callback"
 
-    # Expired session error
+    # Expired session error creates fresh authorization session
     with patch(
         "custom_components.xfinity.config_flow.async_complete_browser_auth",
         AsyncMock(side_effect=XfinityBrowserSessionExpiredError("Expired")),
@@ -287,7 +287,7 @@ async def test_browser_callback_error_handling(hass, enable_custom_integrations)
         )
     assert result3["errors"]["base"] == "session_expired"
 
-    # Login rejected / invalid_auth
+    # Login rejected / invalid_auth creates fresh authorization session
     with patch(
         "custom_components.xfinity.config_flow.async_complete_browser_auth",
         AsyncMock(side_effect=XfinityLoginRejected("Rejected")),
@@ -298,7 +298,7 @@ async def test_browser_callback_error_handling(hass, enable_custom_integrations)
         )
     assert result4["errors"]["base"] == "invalid_auth"
 
-    # Connection error
+    # Connection error creates fresh authorization session
     with patch(
         "custom_components.xfinity.config_flow.async_complete_browser_auth",
         AsyncMock(side_effect=XfinityLoginError("Connection failed")),
@@ -496,6 +496,51 @@ async def test_reconfigure_with_browserless(hass, enable_custom_integrations):
     assert entry.data[CONF_ADDRESS] == "400 Market Street"
     assert entry.data[CONF_BROWSERLESS_API_KEY] == "replacement-api-key"
     assert entry.data[CONF_REFRESH_TOKEN] == "reconfig-key-token"
+
+
+async def test_reconfigure_update_service_address(hass, enable_custom_integrations):
+    """Reconfigure flow allows updating only the service address without re-authenticating."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_AUTH_METHOD: AUTH_METHOD_BROWSER,
+            CONF_ADDRESS: ADDRESS,
+            CONF_REFRESH_TOKEN: TOKEN,
+        },
+        version=2,
+    )
+    entry.add_to_hass(hass)
+
+    result = await entry.start_reconfigure_flow(hass)
+    assert result["type"] == "menu"
+    assert result["step_id"] == "reconfigure"
+    assert "address" in result["menu_options"]
+
+    # Select address update
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {"next_step_id": "address"},
+    )
+    assert result["type"] == "form"
+    assert result["step_id"] == "address"
+
+    # Submit bad address
+    result_bad = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_ADDRESS: "no"},
+    )
+    assert result_bad["errors"]["address"] == "invalid_address"
+
+    # Submit valid address
+    result = await hass.config_entries.flow.async_configure(
+        result["flow_id"],
+        {CONF_ADDRESS: "789 Pine Street"},
+    )
+    assert result["type"] == "abort"
+    assert result["reason"] == "reconfigure_successful"
+    assert entry.data[CONF_ADDRESS] == "789 Pine Street"
+    assert entry.data[CONF_AUTH_METHOD] == AUTH_METHOD_BROWSER
+    assert entry.data[CONF_REFRESH_TOKEN] == TOKEN
 
 
 async def test_second_entry_is_refused(hass, enable_custom_integrations):

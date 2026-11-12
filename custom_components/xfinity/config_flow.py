@@ -203,8 +203,10 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
             except XfinityInvalidCallbackError:
                 errors["base"] = "invalid_callback"
             except XfinityLoginRejected:
+                self._browser_auth = BrowserAuthorization.create()
                 errors["base"] = "invalid_auth"
             except XfinityLoginError, TimeoutError:
+                self._browser_auth = BrowserAuthorization.create()
                 errors["base"] = "cannot_connect"
 
         return self.async_show_form(
@@ -300,12 +302,40 @@ class XfinityConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_reconfigure(
         self, user_input: dict | None = None
     ) -> ConfigFlowResult:
-        """Allow user to switch authentication methods or update configuration."""
+        """Allow user to update service address or switch authentication methods."""
         self._reconfigure_entry = self._get_reconfigure_entry()
         self._address = self._reconfigure_entry.data.get(CONF_ADDRESS)
         return self.async_show_menu(
             step_id="reconfigure",
-            menu_options=["browser", "browserless"],
+            menu_options=["address", "browser", "browserless"],
+        )
+
+    async def async_step_address(
+        self, user_input: dict | None = None
+    ) -> ConfigFlowResult:
+        """Update only the service address, preserving authentication and method."""
+        errors: dict[str, str] = {}
+        entry = self._reconfigure_entry or self._get_reconfigure_entry()
+        self._reconfigure_entry = entry
+
+        if user_input is not None:
+            try:
+                address = clean_address(user_input.get(CONF_ADDRESS))
+                return self.async_update_reload_and_abort(
+                    entry,
+                    data_updates={CONF_ADDRESS: address},
+                )
+            except XfinityError as err:
+                errors.update(_input_error(err))
+
+        schema = self.add_suggested_values_to_schema(
+            BROWSER_SCHEMA,
+            {CONF_ADDRESS: entry.data.get(CONF_ADDRESS, "")},
+        )
+        return self.async_show_form(
+            step_id="address",
+            data_schema=schema,
+            errors=errors,
         )
 
 
