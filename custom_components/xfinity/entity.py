@@ -38,4 +38,6 @@ class XfinityEntity(CoordinatorEntity[XfinityCoordinator]):
 
     @property
     def available(self) -> bool:
+        if self._section == "coordinator":
+            return super().available
         return super().available and self.section_data().get("status") != "error"

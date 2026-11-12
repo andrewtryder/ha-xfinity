@@ -23,8 +23,10 @@ A failure in one request (outage, usage, or bill) does not clear the last known 
 ## Requirements and compatibility
 
 - Home Assistant **2026.8.0 or newer** and HACS (or the built-in Home Assistant Marketplace in **2026.11+**).
-- One residential Xfinity account (username, password, and service address).
-- A [Browserless](https://www.browserless.io) API key. Each sign-in uses a residential proxy session in Browserless so Home Assistant does not need to run a local browser.
+- One residential Xfinity account (service address and login credentials).
+- **Authentication method choice:**
+  - **Browser sign-in (Recommended):** Free, no external services required. Authenticate directly on Xfinity's website in your web browser; your password is never stored or handled by Home Assistant.
+  - **Browserless automatic login (Optional):** Requires a paid [Browserless](https://www.browserless.io) account and API key. Automatically handles background re-authentication using residential proxy sessions.
 
 ## Install with HACS or Home Assistant Marketplace
 
@@ -39,10 +41,16 @@ For manual installation, copy `custom_components/xfinity` from a release into yo
 ## First-time setup
 
 1. Go to **Settings → Devices & services → Add integration** and select **Xfinity**.
-2. Enter your service address (used for outage checks), Xfinity username, Xfinity password, and Browserless API key.
-3. If Xfinity prompts for two-step verification during sign-in, approve the request in the Xfinity app and submit the setup form again.
+2. Choose your preferred sign-in method:
+   - **Sign in using your browser (Recommended):** Enter your service address, click the sign-in link, authenticate on Xfinity's website (including any MFA verification prompts), copy the resulting authorization callback URL, and paste it into Home Assistant.
+     > [!TIP]
+     > On desktop Google Chrome, open Developer Tools (`F12`), check **Preserve log** under the **Network** tab before signing in. When sign-in completes, select the cancelled `auth?activity_id=...` request and copy the full URL from **Headers → General → Request URL**:
+     >
+     > <img src="docs/chrome_devtools_callback.png" alt="Locating callback URL in Chrome DevTools Headers" width="650">
+   - **Automatic login using Browserless:** Enter your service address, Xfinity username, Xfinity password, and Browserless API key.
+3. Submit the form to complete configuration.
 
-You can update the service address or Browserless API key later with **Reconfigure** on the integration, or update the Xfinity password using the reauthentication flow.
+You can switch authentication methods or update your settings at any time by selecting **Reconfigure** on the integration, or update credentials through the reauthentication flow without reinstalling.
 
 ## What you'll see in Home Assistant
 
@@ -58,8 +66,8 @@ You can update the service address or Browserless API key later with **Reconfigu
 
 ## Limitations, safety, and privacy
 
-- **Browserless credential handling:** Browserless is a third-party cloud browser service. Your Xfinity username and password are sent to Browserless only when signing in: during initial setup, when you reauthenticate, and at most once per hour if Xfinity rejects the stored refresh token. After sign-in, Home Assistant renews tokens directly with Xfinity.
-- **Local storage and diagnostics:** your service address, Xfinity username, Xfinity password, Browserless API key, and refresh token are stored in the Home Assistant config entry; access tokens remain in memory only. Diagnostics replace those config-entry fields with boolean flags (`address_configured`, `credentials_configured`) and include only allowlisted outage, usage, and billing keys, but do not scrub free-text values such as outage messages (`customer_message`)—always review any diagnostic download before sharing it.
+- **Browserless credential handling:** When using the optional Browserless sign-in method, Browserless is a third-party cloud browser service. Your Xfinity username and password are sent to Browserless only when signing in: during initial setup, when you reauthenticate, and at most once per hour if Xfinity rejects the stored refresh token. Browser-based authentication does not use Browserless and never stores or transmits your password. After sign-in, Home Assistant renews tokens directly with Xfinity.
+- **Local storage and diagnostics:** With browser authentication, only your service address, authentication method, and refresh token are stored in Home Assistant—no password or API key. If using Browserless, your service address, Xfinity username, Xfinity password, Browserless API key, and refresh token are stored in the Home Assistant config entry; access tokens remain in memory only. Diagnostics replace those config-entry fields with boolean flags (`address_configured`, `credentials_configured`) and include only allowlisted outage, usage, and billing keys, but do not scrub free-text values such as outage messages (`customer_message`)—always review any diagnostic download before sharing it.
 - **Single account and verification limits:** only one Xfinity account is supported per Home Assistant instance, and verification codes cannot be typed directly inside Home Assistant.
 - **Removing the integration:** deleting **Xfinity** from **Settings → Devices & services** removes the device, entities, and locally stored credentials and tokens.
 

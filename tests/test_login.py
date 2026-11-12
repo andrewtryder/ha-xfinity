@@ -11,6 +11,7 @@ from custom_components.xfinity.login import (
     XfinityLoginError,
     XfinityLoginRejected,
     XfinityMfaRequired,
+    XfinityTokenExchangeError,
     async_browserless_login,
     code_from_callback,
 )
@@ -191,7 +192,7 @@ async def test_exchange_errors():
         )
 
     # 500 server error
-    with pytest.raises(BrowserlessError):
+    with pytest.raises(XfinityTokenExchangeError):
         await async_browserless_login(
             _Session(token_status=500), "user@example.com", "secret", "k" * 20
         )

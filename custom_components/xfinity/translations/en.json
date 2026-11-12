@@ -2,7 +2,45 @@
   "config": {
     "step": {
       "user": {
-        "title": "Xfinity",
+        "title": "Choose how you want to sign in",
+        "description": "**Sign in using your browser (Recommended)**\nAuthenticate directly with Xfinity in your web browser. No Browserless account or Xfinity password storage required. Free and works with MFA.\n\n**Automatic login using Browserless**\nUse your Xfinity username, password, and Browserless API key for automated authentication. Supports automatic re-login. Requires a paid external service.",
+        "menu_options": {
+          "browser": "Sign in using your browser (Recommended)",
+          "browserless": "Automatic login using Browserless"
+        }
+      },
+      "browser": {
+        "title": "Service address",
+        "description": "Enter the street address where Xfinity service is installed. It is used to check for service outages in your area.",
+        "data": {
+          "address": "Service address"
+        },
+        "data_description": {
+          "address": "The street address where Xfinity service is installed. It is used for outage checks."
+        }
+      },
+      "address": {
+        "title": "Service address",
+        "description": "Enter the street address where Xfinity service is installed. It is used to check for service outages in your area.",
+        "data": {
+          "address": "Service address"
+        },
+        "data_description": {
+          "address": "The street address where Xfinity service is installed. It is used for outage checks."
+        }
+      },
+      "browser_callback": {
+        "title": "Sign in to Xfinity using your browser",
+        "description": "This method connects your Xfinity account without Browserless. Your username and password are entered directly on Xfinity's website and are not stored by this integration.\n\n**Step 1 — Open the Xfinity sign-in page**\n\nClick [Open Xfinity Sign In]({authorization_url}) to begin authentication in your web browser.\n\n**Step 2 — Complete authentication**\n\nEnter your Xfinity credentials and complete any verification steps requested by Xfinity.\n\n**Step 3 — Copy the authorization callback**\n\nWhen authentication succeeds, your browser will attempt to open an address beginning with:\n\n`xfinitydigitalhome://auth?code=...&state=...`\n\nYour browser may display an error because this address normally opens the Xfinity mobile application. This is expected.\n\nCopy the complete callback URL if your browser displays it.\n\n*Recommended:* If the URL is not visible in the address bar, open desktop Google Chrome Developer Tools (F12) before signing in, check \"Preserve log\" on the Network tab, and copy the `xfinitydigitalhome://auth` URL from the Console or the last redirect Location header.\n\n**Step 4 — Finish connecting**\n\nReturn to Home Assistant and paste the complete callback URL into the Authorization callback URL field.\n\nSubmit the form to complete setup.\n\n*Important: The authorization code expires after 15 minutes and can only be used once. If setup fails or times out, restart browser authentication to obtain a new link. Do not share the callback URL or authorization code with anyone.*",
+        "data": {
+          "callback_url": "Authorization callback URL"
+        },
+        "data_description": {
+          "callback_url": "The complete callback URL starting with xfinitydigitalhome://auth?code=...&state=..."
+        }
+      },
+      "browserless": {
+        "title": "Automatic login using Browserless",
         "description": "Home Assistant signs in through your Browserless account. The password is stored in this integration and sent to Browserless only when signing in.",
         "data": {
           "address": "Service address",
@@ -18,27 +56,20 @@
         }
       },
       "reauth_confirm": {
-        "title": "Sign in to Xfinity again",
-        "description": "The saved sign-in was rejected, or Xfinity asked for a verification code. Enter the password and Browserless API key.",
-        "data": {
-          "password": "Xfinity password",
-          "browserless_api_key": "Browserless API key"
-        },
-        "data_description": {
-          "password": "The current password for the saved Xfinity ID.",
-          "browserless_api_key": "The API key from your Browserless account, used to run the sign-in browser."
+        "title": "Choose how to sign in again",
+        "description": "The saved sign-in was rejected, or Xfinity asked for a verification code. Choose how you want to sign in again.",
+        "menu_options": {
+          "browser": "Sign in using your browser (Recommended)",
+          "browserless": "Automatic login using Browserless"
         }
       },
       "reconfigure": {
-        "title": "Xfinity settings",
-        "description": "Update the service address or Browserless API key. The password is unchanged.",
-        "data": {
-          "address": "Service address",
-          "browserless_api_key": "Browserless API key"
-        },
-        "data_description": {
-          "address": "The street address where Xfinity service is installed. It is used for outage checks.",
-          "browserless_api_key": "The replacement API key from your Browserless account."
+        "title": "Reconfigure Xfinity",
+        "description": "Choose what you want to update.",
+        "menu_options": {
+          "address": "Update service address",
+          "browser": "Switch to browser sign-in (or re-authenticate)",
+          "browserless": "Switch to Browserless (or update credentials)"
         }
       }
     },
@@ -49,6 +80,8 @@
       "invalid_username": "Enter the Xfinity username.",
       "invalid_password": "Enter the Xfinity password.",
       "invalid_browserless_key": "Enter the Browserless API key.",
+      "invalid_callback": "The callback URL is invalid or did not contain a valid authorization code and matching state.",
+      "session_expired": "The sign-in session expired. Open the link again to complete sign-in.",
       "mfa_required": "Xfinity asked for a verification code. Approve it in the Xfinity app, then try again.",
       "browserless_error": "Browserless could not run the sign-in. Check the API key and remaining units.",
       "cannot_connect": "Could not reach Xfinity or Browserless."
@@ -62,7 +95,7 @@
   },
   "exceptions": {
     "invalid_auth": {
-      "message": "Xfinity rejected the saved sign-in. Update the password or Browserless API key."
+      "message": "Xfinity rejected the saved sign-in. Reauthenticate using your browser or update the Browserless credentials."
     },
     "not_ready": {
       "message": "Xfinity is temporarily unavailable."
@@ -86,7 +119,9 @@
       "bill_status": {"name": "Bill status"},
       "amount_due": {"name": "Amount due"},
       "bill_due_date": {"name": "Bill due date"},
-      "past_due": {"name": "Past due amount"}
+      "past_due": {"name": "Past due amount"},
+      "last_successful_outage_check": {"name": "Last successful outage check"},
+      "last_successful_account_update": {"name": "Last successful account update"}
     },
     "binary_sensor": {
       "active_outage": {"name": "Active outage"},

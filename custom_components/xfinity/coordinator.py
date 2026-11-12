@@ -17,7 +17,10 @@ from homeassistant.util import dt as dt_util
 
 from .api import XfinityAuthError, XfinityClient, XfinityClientRejected, XfinityError
 from .const import (
+    AUTH_METHOD_BROWSER,
+    AUTH_METHOD_BROWSERLESS,
     CONF_ADDRESS,
+    CONF_AUTH_METHOD,
     CONF_BROWSERLESS_API_KEY,
     CONF_PASSWORD,
     CONF_REFRESH_TOKEN,
@@ -62,6 +65,8 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         self._account_due = datetime.now(timezone.utc)
         self._warned: set[str] = set()
         self._last_login: float | None = None
+        self.last_successful_outage_check: datetime | None = None
+        self.last_successful_account_update: datetime | None = None
 
     async def _async_setup(self) -> None:
         """Confirm the entry can be polled before the first refresh."""
@@ -85,11 +90,41 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         return {"outage": outage, "usage": usage, "bill": bill}
 
     async def _outage(self) -> dict[str, Any]:
+        started = time.monotonic()
+        _LOGGER.debug("Starting Xfinity outage check")
         try:
             result = await self.client.async_fetch_outage()
         except XfinityError as err:
             return self._failed("outage", (self.data or {}).get("outage"), err)
+        _LOGGER.info(
+            "Xfinity outage check completed in %.2fs (status: %s)",
+            time.monotonic() - started,
+            result.get("status", "unknown"),
+        )
+        self.last_successful_outage_check = dt_util.utcnow()
         return self._recovered("outage", result)
+
+    def _auth_method(self) -> str:
+        method = self.entry.data.get(CONF_AUTH_METHOD)
+        if method is not None:
+            return method
+        return (
+            AUTH_METHOD_BROWSERLESS
+            if self.entry.data.get(CONF_BROWSERLESS_API_KEY)
+            else AUTH_METHOD_BROWSER
+        )
+
+    def _log_auth_expired(self, section: str) -> None:
+        if self._auth_method() == AUTH_METHOD_BROWSERLESS:
+            _LOGGER.warning(
+                "Xfinity authorization expired during %s check; attempting automatic Browserless sign-in",
+                section,
+            )
+        else:
+            _LOGGER.warning(
+                "Xfinity authorization expired during %s check; user reauthentication required",
+                section,
+            )
 
     async def _account(self) -> tuple[dict[str, Any], dict[str, Any]]:
         now = datetime.now(timezone.utc)
@@ -102,66 +137,111 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
             "status"
         ) not in (None, "error")
         if usage_fresh and bill_fresh and now < self._account_due:
+            _LOGGER.debug(
+                "Skipping account check: cached usage and billing are fresh until %s",
+                self._account_due.isoformat(),
+            )
             return previous_usage, previous_bill
         client_rejected = False
+        usage_ok = False
+        bill_ok = False
+        account_started = time.monotonic()
+        _LOGGER.debug("Starting Xfinity account check")
+        usage_started = time.monotonic()
+        _LOGGER.debug("Starting Xfinity usage check")
         try:
             usage = await self.client.async_fetch_usage(dt_util.now().date())
         except XfinityClientRejected as err:
             client_rejected = True
             usage = self._failed("usage", previous_usage, err)
         except XfinityAuthError:
+            self._log_auth_expired("usage")
             if not await self._relogin():
                 raise ConfigEntryAuthFailed(
                     translation_domain=DOMAIN, translation_key="invalid_auth"
                 ) from None
-            usage = await self._usage_after_login(previous_usage)
+            usage, usage_ok = await self._usage_after_login(previous_usage)
         except XfinityError as err:
             usage = self._failed("usage", previous_usage, err)
         else:
             usage = self._recovered("usage", usage)
+            usage_ok = True
+            _LOGGER.info(
+                "Xfinity usage check completed in %.2fs (status: %s)",
+                time.monotonic() - usage_started,
+                usage.get("status", "unknown"),
+            )
+        bill_started = time.monotonic()
+        _LOGGER.debug("Starting Xfinity billing check")
         try:
             bill = await self.client.async_fetch_bill()
         except XfinityClientRejected as err:
             client_rejected = True
             bill = self._failed("bill", previous_bill, err)
         except XfinityAuthError:
+            self._log_auth_expired("billing")
             if not await self._relogin():
                 raise ConfigEntryAuthFailed(
                     translation_domain=DOMAIN, translation_key="invalid_auth"
                 ) from None
-            bill = await self._bill_after_login(previous_bill)
+            bill, bill_ok = await self._bill_after_login(previous_bill)
         except XfinityError as err:
             bill = self._failed("bill", previous_bill, err)
         else:
             bill = self._recovered("bill", bill)
+            bill_ok = True
+            _LOGGER.info(
+                "Xfinity billing check completed in %.2fs (status: %s)",
+                time.monotonic() - bill_started,
+                bill.get("status", "unknown"),
+            )
         if client_rejected:
             self._create_client_issue()
-        elif usage.get("status") != "error" and bill.get("status") != "error":
+        elif usage_ok and bill_ok:
             self._clear_client_issue()
             self._account_due = now + USAGE_INTERVAL
+            self.last_successful_account_update = dt_util.utcnow()
+            _LOGGER.info(
+                "Xfinity account check completed in %.2fs",
+                time.monotonic() - account_started,
+            )
         return usage, bill
 
-    async def _usage_after_login(self, previous: Any) -> dict[str, Any]:
+    async def _usage_after_login(self, previous: Any) -> tuple[dict[str, Any], bool]:
+        started = time.monotonic()
         try:
-            return self._recovered(
+            result = self._recovered(
                 "usage", await self.client.async_fetch_usage(dt_util.now().date())
             )
+            _LOGGER.info(
+                "Xfinity usage check completed in %.2fs (status: %s)",
+                time.monotonic() - started,
+                result.get("status", "unknown"),
+            )
+            return result, True
         except XfinityAuthError:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
             ) from None
         except XfinityError as err:
-            return self._failed("usage", previous, err)
+            return self._failed("usage", previous, err), False
 
-    async def _bill_after_login(self, previous: Any) -> dict[str, Any]:
+    async def _bill_after_login(self, previous: Any) -> tuple[dict[str, Any], bool]:
+        started = time.monotonic()
         try:
-            return self._recovered("bill", await self.client.async_fetch_bill())
+            result = self._recovered("bill", await self.client.async_fetch_bill())
+            _LOGGER.info(
+                "Xfinity billing check completed in %.2fs (status: %s)",
+                time.monotonic() - started,
+                result.get("status", "unknown"),
+            )
+            return result, True
         except XfinityAuthError:
             raise ConfigEntryAuthFailed(
                 translation_domain=DOMAIN, translation_key="invalid_auth"
             ) from None
         except XfinityError as err:
-            return self._failed("bill", previous, err)
+            return self._failed("bill", previous, err), False
 
     async def _relogin(self) -> bool:
         """Sign in again at most once an hour. Returns whether a new token was stored."""
@@ -172,6 +252,9 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         ):
             return False
         self._last_login = now
+        if self._auth_method() != AUTH_METHOD_BROWSERLESS:
+            return False
+
         data = self.entry.data
         username = data.get(CONF_USERNAME)
         password = data.get(CONF_PASSWORD)
@@ -203,6 +286,7 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
         except KeyError, TypeError, ValueError:
             self.client.expires_at = 0
         self._persist_refresh_token(refresh)
+        _LOGGER.info("Automatic Browserless sign-in succeeded; new tokens stored")
         return True
 
     def _failed(self, name: str, previous: Any, err: Exception) -> dict[str, Any]:
@@ -230,6 +314,7 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
 
     def _persist_refresh_token(self, refresh_token: str) -> None:
         """Store a rotated refresh token immediately. Access tokens stay in memory."""
+        _LOGGER.info("Xfinity OAuth refresh token rotated and saved")
         self.hass.config_entries.async_update_entry(
             self.entry,
             data={**self.entry.data, CONF_REFRESH_TOKEN: refresh_token},

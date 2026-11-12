@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+import logging
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -16,7 +18,10 @@ from custom_components.xfinity.api import (
     XfinityError,
 )
 from custom_components.xfinity.const import (
+    AUTH_METHOD_BROWSER,
+    AUTH_METHOD_BROWSERLESS,
     CONF_ADDRESS,
+    CONF_AUTH_METHOD,
     CONF_REFRESH_TOKEN,
     DOMAIN,
     INVALID_CLIENT_ISSUE,
@@ -248,6 +253,16 @@ async def test_relogin_failure_modes(hass):
     coordinator = XfinityCoordinator(hass, entry_no_creds)
     assert await coordinator._relogin() is False
 
+    entry_browser = _entry(
+        hass,
+        auth_method=AUTH_METHOD_BROWSER,
+        username="u",
+        password="p",
+        browserless_api_key="k",
+    )
+    coordinator_browser = XfinityCoordinator(hass, entry_browser)
+    assert await coordinator_browser._relogin() is False
+
     entry_with_creds = _entry(hass, username="u", password="p", browserless_api_key="k")
     coordinator2 = XfinityCoordinator(hass, entry_with_creds)
     with patch(
@@ -435,3 +450,230 @@ async def test_outage_sensor_extra_state_attributes(hass, enable_custom_integrat
     assert state is not None
     assert state.attributes["classification"] == "planned"
     assert state.attributes["customer_message"] == "Maintenance in progress"
+
+
+async def test_diagnostic_timestamp_sensors(hass, enable_custom_integrations):
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    outage_sensor = hass.states.get("sensor.xfinity_last_successful_outage_check")
+    assert outage_sensor is not None
+    assert outage_sensor.state != "unknown"
+    assert outage_sensor.attributes.get("device_class") == "timestamp"
+
+    account_sensor = hass.states.get("sensor.xfinity_last_successful_account_update")
+    assert account_sensor is not None
+    assert account_sensor.state != "unknown"
+    assert account_sensor.attributes.get("device_class") == "timestamp"
+
+
+async def test_diagnostic_timestamps_on_failure_and_cache(
+    hass, enable_custom_integrations
+):
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    coordinator: XfinityCoordinator = entry.runtime_data
+    initial_outage_time = coordinator.last_successful_outage_check
+    initial_account_time = coordinator.last_successful_account_update
+    assert initial_outage_time is not None
+    assert initial_account_time is not None
+
+    # On a subsequent poll where outage fails and account is cached:
+    class FailingOutageClient(_Client):
+        async def async_fetch_outage(self):
+            raise XfinityError("Outage endpoint down")
+
+    coordinator.client = FailingOutageClient(None, ADDRESS, TOKEN)
+    await coordinator.async_refresh()
+
+    # Outage failed: last successful timestamp must be retained, not cleared
+    assert coordinator.last_successful_outage_check == initial_outage_time
+    # Account was cached: timestamp must remain unchanged
+    assert coordinator.last_successful_account_update == initial_account_time
+
+
+async def test_structured_logging(hass, enable_custom_integrations, caplog):
+    caplog.set_level(logging.DEBUG)
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    # Verify INFO and DEBUG messages during initial poll and setup
+    messages = [record.message for record in caplog.records]
+    assert any("Xfinity integration started successfully" in m for m in messages)
+    assert any("Starting Xfinity outage check" in m for m in messages)
+    assert any("Xfinity outage check completed in" in m for m in messages)
+    assert any("Starting Xfinity account check" in m for m in messages)
+    assert any("Xfinity usage check completed in" in m for m in messages)
+    assert any("Xfinity billing check completed in" in m for m in messages)
+    assert any("Xfinity account check completed in" in m for m in messages)
+
+    # Verify cached poll logs debug message about skipping
+    coordinator: XfinityCoordinator = entry.runtime_data
+    await coordinator.async_refresh()
+    messages_after = [record.message for record in caplog.records]
+    assert any(
+        "Skipping account check: cached usage and billing are fresh until" in m
+        for m in messages_after
+    )
+
+    # Verify token rotation log
+    coordinator._persist_refresh_token("new-token-123")
+    assert any(
+        "Xfinity OAuth refresh token rotated and saved" in record.message
+        for record in caplog.records
+    )
+
+    # Verify unload log
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+    assert any(
+        "Xfinity integration unloaded" in record.message for record in caplog.records
+    )
+
+
+async def test_account_update_not_advanced_when_usage_fails(hass):
+    """When live usage fails but billing succeeds with valid previous data, do not advance account update."""
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        coordinator = XfinityCoordinator(hass, entry)
+        await coordinator.async_refresh()
+
+    initial_time = coordinator.last_successful_account_update
+    assert initial_time is not None
+
+    # Simulate due time reached
+    past_due = datetime.now(timezone.utc) - timedelta(seconds=1)
+    coordinator._account_due = past_due
+
+    class UsageFailsBillSucceeds(_Client):
+        async def async_fetch_usage(self, today=None):
+            raise XfinityError("Usage API temporary error")
+
+        async def async_fetch_bill(self):
+            return {
+                "status": "ok",
+                "billing_status": "PAID",
+                "amount_due": 0.0,
+            }
+
+    coordinator.client = UsageFailsBillSucceeds(None, ADDRESS, TOKEN)
+    await coordinator.async_refresh()
+    data = coordinator.data
+
+    # Previous usage data preserved for entities
+    assert data["usage"]["status"] == "ok"
+    # New billing data received
+    assert data["bill"]["billing_status"] == "PAID"
+
+    # Crucial assertion: timestamp and schedule deadline are NOT advanced
+    assert coordinator.last_successful_account_update == initial_time
+    assert coordinator._account_due == past_due
+
+
+async def test_account_update_not_advanced_when_billing_fails(hass):
+    """When live billing fails but usage succeeds with valid previous data, do not advance account update."""
+    entry = _entry(hass)
+    with patch("custom_components.xfinity.coordinator.XfinityClient", _Client):
+        coordinator = XfinityCoordinator(hass, entry)
+        await coordinator.async_refresh()
+
+    initial_time = coordinator.last_successful_account_update
+    assert initial_time is not None
+
+    past_due = datetime.now(timezone.utc) - timedelta(seconds=1)
+    coordinator._account_due = past_due
+
+    class UsageSucceedsBillFails(_Client):
+        async def async_fetch_usage(self, today=None):
+            return {"status": "ok", "used_gb": 99}
+
+        async def async_fetch_bill(self):
+            raise XfinityError("Billing API temporary error")
+
+    coordinator.client = UsageSucceedsBillFails(None, ADDRESS, TOKEN)
+    await coordinator.async_refresh()
+    data = coordinator.data
+
+    # New usage data received
+    assert data["usage"]["used_gb"] == 99
+    # Previous bill data preserved for entities
+    assert data["bill"]["billing_status"] == "BALANCE_DUE"
+
+    # Crucial assertion: timestamp and schedule deadline are NOT advanced
+    assert coordinator.last_successful_account_update == initial_time
+    assert coordinator._account_due == past_due
+
+
+async def test_auth_expired_logging_distinguishes_method(hass, caplog):
+    """Verify warning wording indicates user reauthentication for browser vs automatic for browserless."""
+    caplog.set_level(logging.WARNING)
+
+    # 1. Browser method
+    browser_entry = _entry(hass, **{CONF_AUTH_METHOD: AUTH_METHOD_BROWSER})
+
+    class AuthExpiredClient(_Client):
+        async def async_fetch_usage(self, today=None):
+            raise XfinityAuthError("expired")
+
+    with patch(
+        "custom_components.xfinity.coordinator.XfinityClient", AuthExpiredClient
+    ):
+        coordinator = XfinityCoordinator(hass, browser_entry)
+        with pytest.raises(ConfigEntryAuthFailed):
+            await coordinator._async_update_data()
+
+    assert any(
+        "Xfinity authorization expired during usage check; user reauthentication required"
+        in record.message
+        for record in caplog.records
+    )
+
+    caplog.clear()
+
+    # 2. Browserless method
+    browserless_entry = _entry(
+        hass,
+        **{
+            CONF_AUTH_METHOD: AUTH_METHOD_BROWSERLESS,
+            "username": "user@example.com",
+            "password": "secret_password",
+            "browserless_api_key": "api_key_123",
+        },
+    )
+
+    login = AsyncMock(
+        return_value={
+            "refresh_token": "new-r",
+            "access_token": "new-a",
+            "id_token": "new-i",
+            "expires_in": 3600,
+        }
+    )
+
+    with (
+        patch(
+            "custom_components.xfinity.coordinator.XfinityClient",
+            AuthExpiredClient,
+        ),
+        patch(
+            "custom_components.xfinity.coordinator.async_browserless_login",
+            login,
+        ),
+    ):
+        coordinator = XfinityCoordinator(hass, browserless_entry)
+        # First call raises auth, relogin succeeds, second call in _usage_after_login also raises AuthExpiredClient -> ConfigEntryAuthFailed
+        with pytest.raises(ConfigEntryAuthFailed):
+            await coordinator._async_update_data()
+
+    assert any(
+        "Xfinity authorization expired during usage check; attempting automatic Browserless sign-in"
+        in record.message
+        for record in caplog.records
+    )
