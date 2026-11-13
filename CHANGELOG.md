@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/andrewtryder/ha-xfinity/compare/v0.3.1...v0.3.2) (2026-11-13)
+
+
+### Features
+
+* add modem connectivity sensor ([#26](https://github.com/andrewtryder/ha-xfinity/issues/26)) ([e48ea72](https://github.com/andrewtryder/ha-xfinity/commit/e48ea72274af1ff59251a7e7d97ee6f904d0c7ad))
+
 ## [0.3.1](https://github.com/andrewtryder/ha-xfinity/compare/v0.3.0...v0.3.1) (2026-11-12)
 
 
