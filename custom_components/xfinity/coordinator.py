@@ -42,6 +42,7 @@ class XfinityData(TypedDict):
     outage: dict[str, Any]
     usage: dict[str, Any]
     bill: dict[str, Any]
+    modem: dict[str, Any]
 
 
 class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
@@ -80,6 +81,13 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
     async def _async_update_data(self) -> XfinityData:
         outage = await self._outage()
         usage, bill = await self._account()
+        try:
+            modem = await self.client.async_fetch_modem()
+        except XfinityError as err:
+            self._failed("modem", None, err)
+            modem = {"status": "error", "online": None}
+        else:
+            self._recovered("modem", modem)
         sections = (outage, usage, bill)
         if self.data is None and all(
             section.get("status") == "error" for section in sections
@@ -87,7 +95,7 @@ class XfinityCoordinator(DataUpdateCoordinator[XfinityData]):
             raise ConfigEntryNotReady(
                 translation_domain=DOMAIN, translation_key="not_ready"
             )
-        return {"outage": outage, "usage": usage, "bill": bill}
+        return {"outage": outage, "usage": usage, "bill": bill, "modem": modem}
 
     async def _outage(self) -> dict[str, Any]:
         started = time.monotonic()

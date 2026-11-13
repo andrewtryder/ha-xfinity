@@ -55,7 +55,7 @@ You can switch authentication methods or update your settings at any time by sel
 ## What you'll see in Home Assistant
 
 - **Sensors:** data used (GB), data allowance (GB), data used percent, usage cycle end date, data policy (diagnostic), outage status (`no_reported_incident`, `incidents_reported`, or `unknown`), bill status, amount due (USD), bill due date, and past-due amount (USD).
-- **Binary sensors:** active outage, scheduled maintenance, and past-due bill.
+- **Binary sensors:** active outage, scheduled maintenance, past-due bill, and modem online status for supported customer-owned modems. Modem status is polled every 30 minutes and is unknown when the account or response does not provide a supported status.
 
 ## Common problems and troubleshooting
 

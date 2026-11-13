@@ -137,3 +137,46 @@ async def test_invalid_json_is_a_connection_error():
 def test_urls():
     assert AUTH_TOKEN_URL.startswith("https://")
     assert GRAPHQL_URL.startswith("https://")
+
+
+@pytest.mark.parametrize("online", [True, False, None])
+async def test_modem_status(online):
+    user = {
+        "data": {
+            "user": {
+                "account": {
+                    "serviceAccountId": "account",
+                    "modem": {"macAddress": "aa:bb:cc:dd:ee:ff", "coam": True},
+                }
+            }
+        }
+    }
+    client = _client(
+        [
+            _Response(200, TOKEN),
+            _Response(200, user),
+            _Response(200, {"isOnline": online}),
+        ]
+    )
+    result = await client.async_fetch_modem()
+    assert result == {"status": "unknown" if online is None else "ok", "online": online}
+    assert client._session.calls[-1] == (
+        "GET",
+        "https://gw.api.dh.comcast.com/coverage/api/coam/accounts/account/gateways/aabbccddeeff/status",
+    )
+
+
+async def test_modem_unsupported_without_customer_owned_modem():
+    user = {
+        "data": {
+            "user": {
+                "account": {
+                    "serviceAccountId": "account",
+                    "modem": {"macAddress": "aa:bb:cc:dd:ee:ff", "coam": False},
+                }
+            }
+        }
+    }
+    client = _client([_Response(200, TOKEN), _Response(200, user)])
+    assert await client.async_fetch_modem() == {"status": "unknown", "online": None}
+    assert len(client._session.calls) == 2
