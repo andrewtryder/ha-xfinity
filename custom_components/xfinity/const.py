@@ -49,6 +49,12 @@ CLIENT_SECRET = "f40e1d73c8ed4b4c82e2fd48ebc23f7a"
 USAGE_OPERATION_ID = "61994c6016ac8c0ebcca875084919e5e01cb3b116a86aaf9646e597c3a1fbd06"
 USAGE_OPERATION = "InternetDataUsage"
 BILL_OPERATION = "AccountLandingCoreBillingCardV2"
+MODEM_STATUS_URL = "https://gw.api.dh.comcast.com/coverage/api/coam/accounts/{account}/gateways/{gateway}/status"
+MODEM_USER_QUERY = """query User($customerGuid: ID) {
+  user(customerGuid: $customerGuid) {
+    account { serviceAccountId modem { macAddress coam } }
+  }
+}"""
 CONFIGURATION_URL = "https://customer.xfinity.com"
 INVALID_CLIENT_ISSUE = "invalid_client"
 

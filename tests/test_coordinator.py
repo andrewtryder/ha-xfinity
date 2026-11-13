@@ -67,6 +67,9 @@ class _Client:
             "due_date": "2026-11-08",
         }
 
+    async def async_fetch_modem(self):
+        return {"status": "ok", "online": True}
+
 
 async def test_setup_drops_stored_access_tokens(hass, enable_custom_integrations):
     entry = _entry(
@@ -85,6 +88,7 @@ async def test_setup_drops_stored_access_tokens(hass, enable_custom_integrations
     state = hass.states.get("sensor.xfinity_data_used")
     assert state is not None
     assert state.state == "1"
+    assert hass.states.get("binary_sensor.xfinity_modem_online").state == "on"
 
 
 async def test_rotated_refresh_token_is_stored(hass):

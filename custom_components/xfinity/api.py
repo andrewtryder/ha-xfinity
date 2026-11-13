@@ -6,7 +6,9 @@ import asyncio
 from collections.abc import Callable
 from datetime import date, datetime, timezone
 import json
+import re
 import time
+from urllib.parse import quote
 
 from .const import (
     AUTH_TOKEN_URL,
@@ -16,6 +18,8 @@ from .const import (
     CLIENT_SECRET,
     GRAPHQL_URL,
     MAX_RESPONSE_BYTES,
+    MODEM_STATUS_URL,
+    MODEM_USER_QUERY,
     OUTAGE_SESSION_URL,
     OUTAGE_STATUS_URL,
     USAGE_OPERATION,
@@ -423,6 +427,50 @@ class XfinityClient:
         """Return the current bill card. The account number is not included."""
         payload = await self._graphql(BILL_OPERATION, BILL_QUERY)
         return bill_summary(payload)
+
+    async def async_fetch_modem(self) -> dict:
+        """Read the customer-owned modem's reported online status."""
+        payload = await self._graphql("User", MODEM_USER_QUERY)
+        try:
+            account = payload["data"]["user"]["account"]
+            modem = account["modem"]
+            account_id = account["serviceAccountId"]
+            mac = modem["macAddress"]
+        except KeyError, TypeError:
+            return {"status": "unknown", "online": None}
+        if (
+            not isinstance(modem, dict)
+            or modem.get("coam") is not True
+            or not isinstance(account_id, str)
+            or not isinstance(mac, str)
+        ):
+            return {"status": "unknown", "online": None}
+        gateway = re.sub(r"[^a-fA-F0-9]", "", mac)
+        if len(gateway) != 12 or not account_id:
+            return {"status": "unknown", "online": None}
+        url = MODEM_STATUS_URL.format(
+            account=quote(account_id, safe=""), gateway=gateway
+        )
+        for attempt in range(2):
+            await self.async_ensure_token(force=bool(attempt))
+            headers = {
+                **_MOBILE_HEADERS,
+                "Authorization": f"Bearer {self.access_token}",
+                "x-id-token": self.id_token,
+            }
+            status, _, body = await self._send("GET", url, headers=headers)
+            if status != 401:
+                break
+        if status == 401:
+            raise XfinityAuthError("modem access token rejected")
+        if status < 200 or status >= 300:
+            raise XfinityError(f"modem status returned HTTP {status}")
+        data = _json_bytes(body)
+        online = data.get("isOnline") if isinstance(data, dict) else None
+        return {
+            "status": "ok" if isinstance(online, bool) else "unknown",
+            "online": online if isinstance(online, bool) else None,
+        }
 
     async def _graphql(
         self, operation: str, query: str, *, operation_id: str | None = None

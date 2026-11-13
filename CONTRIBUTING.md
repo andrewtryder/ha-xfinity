@@ -41,3 +41,29 @@ Ruff lint checks include `custom_components/xfinity`. Formatting currently exclu
 - All commits and PR titles must follow [Conventional Commits](https://www.conventionalcommits.org/).
 - All tests must use synthetic fixtures or local mocks. Never make live network requests or commit real account credentials.
 - Do not edit version numbers manually; releases are managed by Release Please.
+
+## Discovering features in the Android app
+
+Contributors with different Xfinity services can help identify useful entities.
+On a trusted computer, connect an Android emulator or device with USB debugging,
+sign in to the official app, and install Android platform tools (`adb`) and
+Python. Check the device with `adb devices`, then run:
+
+```bash
+python3 scripts/discover-app-features.py --output xfinity-features.txt
+```
+
+Use `--serial SERIAL` if more than one device is connected. Navigate through
+the app yourself and enter a name for each screen to record its accessibility
+labels. Submit a redacted description in an issue or PR, including which
+services you have, what each feature shows, and why it would help in Home
+Assistant. The script does not click controls, record screenshots, capture
+network traffic, or identify API endpoints. Some screens do not expose labels.
+Seeing a feature in the app does not establish how the integration can access it.
+
+The report can contain personal data, account numbers, addresses, device names,
+and other sensitive labels. Review and redact it before sharing; never submit
+credentials, tokens, cookies, callback URLs, or unreviewed network captures.
+Keep live account data out of fixtures and PRs. If an implementation requires
+API research, document the request method and path and use synthetic examples;
+do not invoke disruptive controls such as modem restart merely to discover them.

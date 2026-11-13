@@ -27,6 +27,13 @@ class XfinityBinarySensorDescription(BinarySensorEntityDescription):
 
 SENSORS: tuple[XfinityBinarySensorDescription, ...] = (
     XfinityBinarySensorDescription(
+        key="modem_online",
+        translation_key="modem_online",
+        section="modem",
+        field="online",
+        device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    ),
+    XfinityBinarySensorDescription(
         key="active_outage",
         translation_key="active_outage",
         section="outage",
@@ -77,4 +84,5 @@ class XfinityBinarySensor(XfinityEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool | None:
-        return bool(self.section_data().get(self.entity_description.field))
+        value = self.section_data().get(self.entity_description.field)
+        return value if isinstance(value, bool) else None

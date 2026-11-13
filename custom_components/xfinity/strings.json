@@ -126,7 +126,8 @@
     "binary_sensor": {
       "active_outage": {"name": "Active outage"},
       "scheduled_maintenance": {"name": "Scheduled maintenance"},
-      "past_due_bill": {"name": "Past due bill"}
+      "past_due_bill": {"name": "Past due bill"},
+      "modem_online": {"name": "Modem online"}
     }
   },
   "issues": {

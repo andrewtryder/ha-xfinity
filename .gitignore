@@ -15,6 +15,7 @@ coverage.xml
 coverage.json
 htmlcov/
 .DS_Store
+xfinity-features.txt
 
 # Local Home Assistant runtime state
 .cache/
